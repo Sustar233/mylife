@@ -1,0 +1,8 @@
+node_modules/
+dist/
+.swc/
+.cache/
+.temp/
+coverage/
+*.log
+.env.local

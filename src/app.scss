@@ -1,0 +1,153 @@
+$ink: #2d302c;
+$field: #d6c9aa;
+$panel: #e9dfc5;
+$panel-light: #f1e8d2;
+$self: #506d70;
+$enemy: #765e58;
+$rebel: #8d754e;
+$bronze: #806f50;
+$accent: #50666a;
+$muted: #706d63;
+
+page,
+.taro_page {
+  min-height: 100%;
+  color: $ink;
+  background:
+    radial-gradient(ellipse at 10% 8%, rgba(55, 72, 69, .14), transparent 33%),
+    radial-gradient(ellipse at 88% 26%, rgba(68, 75, 70, .1), transparent 32%),
+    radial-gradient(ellipse at 40% 96%, rgba(126, 105, 69, .12), transparent 38%),
+    repeating-linear-gradient(0deg, rgba(63, 57, 47, .025) 0, rgba(63, 57, 47, .025) 1px, transparent 1px, transparent 6px),
+    linear-gradient(145deg, #ddd2b7, #cfc09f 62%, #dacdb0);
+  background-color: $field !important;
+  font-family: "FangSong", "STFangsong", "Songti SC", "Microsoft YaHei", serif;
+  font-size: 28px;
+}
+
+view, text, input, textarea, button { box-sizing: border-box; }
+button::after { border: 0; }
+
+.page-shell {
+  width: 100%;
+  max-width: 70rem;
+  min-height: 100vh;
+  margin: 0 auto;
+  padding: 28px 28px 56px;
+}
+
+.eyebrow {
+  color: $accent;
+  font-family: "STKaiti", "KaiTi", serif;
+  font-size: 20px;
+  font-weight: 900;
+  letter-spacing: 4px;
+}
+
+.page-title {
+  margin: 8px 0 4px;
+  color: #242824;
+  font-family: "STKaiti", "KaiTi", "Songti SC", serif;
+  font-size: 49px;
+  font-weight: 900;
+  letter-spacing: 4px;
+  text-shadow: 0 1px 0 rgba(255, 252, 236, .62);
+}
+
+.page-subtitle { color: $muted; font-size: 24px; line-height: 1.65; }
+
+.paper-card {
+  position: relative;
+  overflow: hidden;
+  margin-top: 20px;
+  padding: 27px;
+  border: 1px solid #99896a;
+  border-radius: 2px;
+  background:
+    radial-gradient(ellipse at 86% -10%, rgba(80, 102, 106, .1), transparent 36%),
+    repeating-linear-gradient(0deg, rgba(72, 65, 52, .025) 0, rgba(72, 65, 52, .025) 1px, transparent 1px, transparent 6px),
+    rgba(236, 226, 201, .96);
+  box-shadow: 0 12px 26px rgba(55, 47, 36, .16), inset 0 0 0 3px rgba(255, 251, 232, .24);
+}
+
+.paper-card::before {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 4px;
+  background: linear-gradient(90deg, #3d4d4e, #78827a 54%, #9b8965);
+  content: "";
+}
+
+.paper-card::after {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 24px;
+  height: 24px;
+  border-top: 1px solid rgba(91, 81, 62, .48);
+  border-right: 1px solid rgba(91, 81, 62, .48);
+  content: "";
+  pointer-events: none;
+}
+
+.section-title { margin-bottom: 18px; color: #2d332f; font-family: "STKaiti", "KaiTi", serif; font-size: 31px; font-weight: 900; letter-spacing: 2px; }
+.muted { color: $muted; }
+.self-text { color: $self; }
+.enemy-text { color: $enemy; }
+.rebel-text { color: $rebel; }
+
+.primary-button,
+.secondary-button,
+.danger-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 82px;
+  margin: 0;
+  padding: 0 28px;
+  border-radius: 2px;
+  font-family: "STKaiti", "KaiTi", serif;
+  font-size: 27px;
+  font-weight: 900;
+  line-height: 1.2;
+  letter-spacing: 3px;
+}
+
+.primary-button { border: 1px solid #34494c; color: #f3ecd9; background: linear-gradient(180deg, #5d7374, #3e5152); box-shadow: inset 0 1px rgba(255, 255, 255, .16), 0 6px 14px rgba(43, 49, 46, .2); }
+.secondary-button { border: 1px solid #8d7c5d; color: #383a35; background: linear-gradient(180deg, #eee3ca, #d9cbae); }
+.danger-button { border: 1px solid #685d54; color: #f2ead7; background: linear-gradient(180deg, #706a61, #524f49); }
+.primary-button[disabled]:not([disabled="false"]),
+.secondary-button[disabled]:not([disabled="false"]) { opacity: .42; }
+
+.field-label { display: block; margin: 24px 0 10px; color: #5e5f58; font-size: 22px; font-weight: 800; letter-spacing: 1px; }
+.text-input, .text-area { width: 100%; border: 1px solid #9b8c70; border-radius: 2px; background: rgba(249, 243, 225, .72); color: #2d302c; font-size: 27px; box-shadow: inset 0 2px 7px rgba(66, 57, 44, .1); }
+.text-input { height: 76px; padding: 0 19px; }
+.text-area { min-height: 150px; padding: 17px 19px; }
+.text-input::placeholder, .text-area::placeholder { color: #9a9385; }
+
+.chip-row { display: flex; flex-wrap: wrap; gap: 11px; }
+.chip { padding: 13px 19px; border: 1px solid #9b8a6a; border-radius: 2px; background: rgba(241, 231, 207, .78); color: #64635b; font-size: 23px; }
+.chip--active { border-color: $accent; background: rgba(80, 102, 106, .14); color: #334c4f; font-weight: 900; box-shadow: inset 0 -3px $accent; }
+.progress-track { overflow: hidden; height: 10px; border: 1px solid #9b8d72; border-radius: 1px; background: #c9bda2; }
+.progress-fill { height: 100%; border-radius: inherit; background: linear-gradient(90deg, #40575a, #86938b); box-shadow: 0 0 9px rgba(62, 83, 85, .22); }
+
+/* H5 tab bar stays dark like an inkstone beneath the pale scroll. */
+.weui-tabbar { border-top: 1px solid #72766d !important; background: rgba(45, 50, 45, .985) !important; box-shadow: 0 -7px 20px rgba(43, 42, 37, .22); }
+.weui-tabbar__item > span, .weui-tabbar__icon { display: none !important; }
+.weui-tabbar__item::before { display: block; margin-bottom: 3px; color: currentColor; font-family: "STKaiti", "KaiTi", serif; font-size: 22px; font-weight: 900; line-height: 1; content: "令"; }
+.weui-tabbar__item:nth-child(2)::before { content: "图"; }
+.weui-tabbar__item:nth-child(3)::before { content: "史"; }
+.weui-tabbar__label { margin-top: 0 !important; font-family: "FangSong", "STFangsong", serif; }
+
+@media (min-width: 900px) {
+  /* Taro converts design pixels to rem; enlarge the root only on desktop H5. */
+  html { font-size: 200% !important; }
+  .page-shell { max-width: 1120PX; padding: 40px 40px 76px; }
+  .page-title { font-size: 57px; }
+  .weui-tabbar__label { font-size: 15PX !important; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; }
+}

@@ -1,0 +1,175 @@
+.territory-map {
+  position: relative;
+  width: 100%;
+  height: 720px;
+  overflow: hidden;
+  border: 1px solid #81765f;
+  border-radius: 2px;
+  background: #cbbd9b;
+  box-shadow: 0 16px 38px rgba(53, 48, 39, .2), inset 0 0 0 4px rgba(244, 237, 219, .18);
+}
+
+.territory-map::before,
+.territory-map::after {
+  position: absolute;
+  z-index: 4;
+  width: 48px;
+  height: 48px;
+  border-color: #536563;
+  content: "";
+  pointer-events: none;
+}
+
+.territory-map::before { top: 9px; left: 9px; border-top: 2px solid; border-left: 2px solid; }
+.territory-map::after { right: 9px; bottom: 9px; border-right: 2px solid; border-bottom: 2px solid; }
+.territory-canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+
+.map-command-bar {
+  position: absolute;
+  z-index: 5;
+  top: 0;
+  left: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  min-height: 92px;
+  padding: 15px 20px 13px 28px;
+  border-bottom: 1px solid rgba(72, 80, 74, .35);
+  background: linear-gradient(90deg, rgba(49, 56, 51, .97), rgba(76, 84, 75, .93));
+}
+
+.map-command-copy { display: flex; min-width: 0; flex-direction: column; }
+.map-command-kicker { color: #d7c698; font-size: 15px; font-weight: 800; letter-spacing: 3px; }
+.map-command-title { color: #f1ead8; font-family: "STKaiti", "KaiTi", serif; font-size: 25px; font-weight: 900; line-height: 1.1; }
+.map-command-meta { margin-top: 2px; color: #c5c5b7; font-size: 16px; }
+.map-mode-switch { display: flex; flex: 0 0 auto; padding: 3px; border: 1px solid #8b8e81; background: #343a35; }
+.map-mode { padding: 10px 16px; color: #b7bbb0; font-size: 18px; font-weight: 800; }
+.map-mode--active { background: #d6c8a8; color: #354341; }
+
+.territory-node {
+  position: absolute;
+  z-index: 3;
+  width: 126px;
+  color: #3f4b49;
+  text-align: center;
+  transform: translate(-50%, -50%);
+}
+
+.node-designation {
+  display: inline-block;
+  margin-bottom: 2px;
+  padding: 1px 5px;
+  border: 1px solid currentColor;
+  background: rgba(238, 230, 209, .88);
+  font-family: Consolas, monospace;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  opacity: .9;
+}
+
+.node-label-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-height: 31px;
+  padding: 4px 7px;
+  border: 1px solid rgba(55, 58, 53, .48);
+  border-left: 4px solid currentColor;
+  background: rgba(241, 233, 212, .93);
+  box-shadow: 0 4px 10px rgba(55, 50, 41, .2);
+}
+
+.node-symbol { flex: 0 0 auto; font-size: 15px; }
+.node-name { overflow: hidden; color: #2d322e; font-size: 16px; font-weight: 900; line-height: 1.1; text-overflow: ellipsis; white-space: nowrap; }
+.node-state { display: inline-block; margin-top: 2px; padding: 1px 6px; background: rgba(238, 230, 209, .84); font-size: 14px; font-weight: 700; }
+.territory-node--self { color: #42686b; }
+.territory-node--enemy { color: #735b56; }
+.territory-node--contested, .territory-node--rebel { color: #846a43; }
+.territory-node--locked { color: #77766e; filter: grayscale(.62); opacity: .72; }
+.territory-node--selected { z-index: 6; }
+.territory-node--selected .node-label-row { border-color: #334f53; background: #dfe0cf; box-shadow: 0 0 0 3px rgba(52, 79, 83, .2), 0 5px 14px rgba(54, 49, 40, .27); transform: translateY(-2px); }
+.territory-node--selected .node-designation { color: #344f53; }
+.territory-node--capital .node-label-row { border-top-color: #526a68; border-bottom-color: #526a68; }
+
+.supply-alert {
+  position: absolute;
+  top: -13px;
+  right: -11px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: 2px solid #e5dac0;
+  border-radius: 50%;
+  background: #8f7548;
+  color: #f6edd7;
+  font-size: 16px;
+  font-weight: 900;
+}
+
+.map-sitrep {
+  position: absolute;
+  z-index: 5;
+  right: 18px;
+  bottom: 18px;
+  display: grid;
+  grid-template-columns: repeat(3, auto);
+  border: 1px solid #7e745f;
+  background: rgba(237, 229, 208, .94);
+}
+
+.map-sitrep > view { min-width: 82px; padding: 8px 10px; border-left: 1px solid #a09378; text-align: center; }
+.map-sitrep > view:first-child { border-left: 0; }
+.map-sitrep text, .map-sitrep small { display: block; }
+.map-sitrep text { color: #496b6d; font-family: Georgia, serif; font-size: 24px; font-weight: 900; }
+.map-sitrep small { color: #696a62; font-size: 13px; }
+.map-sitrep--danger text { color: #806641; }
+.map-scale { position: absolute; z-index: 4; bottom: 27px; left: 24px; display: flex; align-items: flex-end; gap: 5px; color: #5d625b; font-family: Consolas, monospace; font-size: 12px; }
+.map-scale view { width: 86px; height: 8px; border: 1px solid #59605a; border-top: 0; }
+.map-compass { position: absolute; z-index: 4; top: 112px; right: 20px; color: #3e4946; text-align: center; }
+.map-compass text { display: block; font-family: Georgia, serif; font-size: 16px; font-weight: 900; }
+.map-compass view { color: #3f5555; font-size: 24px; }
+.map-compass small { color: #6f6b61; font-family: Consolas, monospace; font-size: 11px; }
+
+@media (min-width: 900px) {
+  .map-command-kicker { font-size: 15PX; }
+  .map-command-meta { font-size: 16PX; }
+  .territory-node { width: 164PX; }
+  .node-designation { font-size: 13PX; }
+  .node-symbol { font-size: 15PX; }
+  .node-name { font-size: 16PX; }
+  .node-state { font-size: 14PX; }
+  .map-sitrep small { font-size: 13PX; }
+  .map-scale { font-size: 12PX; }
+  .map-compass text { font-size: 16PX; }
+  .map-compass small { font-size: 12PX; }
+}
+
+@media (max-width: 600px) {
+  .territory-map { height: 420PX; }
+  .map-command-bar { min-height: 64PX; padding: 9PX 10PX 8PX 14PX; }
+  .map-command-kicker { font-size: 10PX; }
+  .map-command-title { font-size: 18PX; }
+  .map-command-meta { font-size: 11PX; }
+  .map-mode { padding: 7PX 8PX; font-size: 13PX; }
+  .territory-node { width: 64PX; }
+  .node-designation { font-size: 9PX; }
+  .node-label-row { min-height: 24PX; padding: 3PX 4PX; }
+  .node-symbol { font-size: 10PX; }
+  .node-name { font-size: 10PX; }
+  .node-state { font-size: 9PX; }
+  .map-sitrep { right: 12px; bottom: 12px; }
+  .map-sitrep > view { min-width: 51PX; padding: 5PX; }
+  .map-sitrep text { font-size: 16PX; }
+  .map-sitrep small { font-size: 9PX; }
+  .map-scale { display: none; }
+  .map-compass { top: 72PX; right: 8PX; }
+  .map-compass text { font-size: 12PX; }
+  .map-compass view { font-size: 17PX; }
+  .map-compass small { font-size: 8PX; }
+}

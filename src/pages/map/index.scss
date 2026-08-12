@@ -1,0 +1,27 @@
+.empty-map-page { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+.empty-map-mark { color: #596d6e; font-size: 88px; }
+.map-header { position: relative; display: flex; align-items: center; justify-content: space-between; gap: 24px; margin-bottom: 17px; padding-bottom: 20px; border-bottom: 1px solid #8f8268; }
+.map-header::after { position: absolute; bottom: -2px; left: 0; width: 150px; height: 3px; background: #50666a; content: ""; }
+.campaign-progress-seal { display: flex; flex: 0 0 auto; flex-direction: column; align-items: center; justify-content: center; width: 94px; height: 94px; border: 1px solid #667573; color: #f0e7d1; background: #556866; box-shadow: inset 0 0 0 6px #d3c7aa, 0 0 0 1px #7b6d52; }
+.campaign-progress-seal text { font-family: Georgia, serif; font-size: 28px; font-weight: 900; }
+.campaign-progress-seal small { color: #e2d8bd; font-size: 16px; letter-spacing: 2px; }
+.campaign-tabs { display: flex; gap: 9px; margin: 17px 0 13px; overflow-x: auto; }
+.campaign-tab { display: flex; flex: 0 0 auto; align-items: center; gap: 10px; padding: 12px 17px; border: 1px solid #9a8b70; border-left: 4px solid #89795d; background: rgba(240, 231, 208, .7); }
+.campaign-tab text { color: #5f6058; font-size: 22px; font-weight: 800; }
+.campaign-tab small { color: #817b6e; font-family: Consolas, monospace; font-size: 17px; }
+.campaign-tab--active { border-color: #536b6e; border-left-color: #344e52; background: #667b79; }
+.campaign-tab--active text { color: #f4ecd8; }
+.campaign-tab--active small { color: #d9ddcf; }
+.map-legend { display: flex; flex-wrap: wrap; gap: 17px; margin: 10px 0 14px; color: #69695f; font-family: "FangSong", serif; font-size: 18px; }
+.map-legend > view { display: flex; align-items: center; gap: 7px; }
+.legend-dot { width: 18px; height: 14px; border: 1px solid rgba(48, 50, 46, .5); }
+.legend-dot--self { background: #71898b; }
+.legend-dot--enemy { background: #7b6660; }
+.legend-dot--rebel { background: repeating-linear-gradient(135deg, #9a805c 0, #9a805c 3px, #c1ad81 3px, #c1ad81 5px); }
+.legend-dot--locked { background: repeating-linear-gradient(135deg, #858277 0, #858277 3px, #b9b3a4 3px, #b9b3a4 4px); }
+
+@media (max-width: 430px) {
+  .map-header { align-items: flex-start; }
+  .campaign-progress-seal { width: 78px; height: 78px; }
+  .map-legend { gap: 10px 14px; font-size: 16px; }
+}

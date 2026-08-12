@@ -1,0 +1,28 @@
+.node-dossier { border-top-color: #50666a; }
+.dossier-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; }
+.dossier-region { margin-bottom: 5px; color: #657477; font-family: Consolas, monospace; font-size: 19px; font-weight: 800; letter-spacing: 2px; }
+.status-stamp { flex: 0 0 auto; padding: 9px 12px; border: 1px solid currentColor; border-left-width: 5px; background: rgba(246, 239, 221, .7); font-family: "FangSong", serif; font-size: 18px; font-weight: 800; }
+.status-stamp--self { color: #46686b; }
+.status-stamp--enemy { color: #725c58; }
+.status-stamp--rebel { color: #8a7048; }
+.dossier-description { margin-top: -5px; color: #686960; font-size: 23px; line-height: 1.6; }
+.supply-warning { margin-top: 16px; padding: 13px 15px; border: 1px solid #9a835a; border-left: 5px solid #8a7048; background: rgba(156, 129, 79, .12); color: #6e5936; font-size: 21px; line-height: 1.5; }
+.dossier-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 9px; margin-top: 21px; }
+.dossier-stat { padding: 14px 8px; border: 1px solid #a09276; background: rgba(247, 240, 221, .58); text-align: center; }
+.dossier-stat-label, .dossier-stat-value { display: block; }
+.dossier-stat-label { color: #657472; font-family: Consolas, monospace; font-size: 17px; }
+.dossier-stat-value { margin-top: 5px; color: #30332e; font-size: 27px; font-weight: 900; }
+.dossier-stat-date { font-size: 20px; }
+.criteria-box { margin-top: 19px; padding: 17px; border: 1px solid #87908a; border-left: 5px solid #50666a; background: rgba(80, 102, 106, .1); }
+.criteria-label { color: #52696b; font-family: "FangSong", serif; font-size: 18px; font-weight: 800; letter-spacing: 2px; }
+.criteria-text { margin-top: 6px; color: #333732; font-size: 24px; line-height: 1.55; }
+.score-target { display: inline-block; margin-top: 10px; padding: 5px 10px; border: 1px solid #817459; background: rgba(129, 116, 89, .1); color: #68593f; font-size: 20px; font-weight: 800; }
+.effort-block { margin-top: 19px; }
+.effort-label { display: flex; justify-content: space-between; margin-bottom: 8px; color: #696961; font-size: 20px; }
+.dossier-action { margin-top: 23px; }
+
+@media (max-width: 430px) {
+  .dossier-grid { grid-template-columns: repeat(2, 1fr); }
+  .dossier-head { display: block; }
+  .status-stamp { display: inline-block; margin: 0 0 16px; }
+}

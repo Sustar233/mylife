@@ -1,0 +1,54 @@
+.battle-loading { display: flex; align-items: center; justify-content: center; color: #706d63; }
+.battle-topline { position: relative; display: flex; align-items: center; justify-content: space-between; padding-bottom: 18px; border-bottom: 1px solid #8f8268; }
+.battle-topline::after { position: absolute; bottom: -2px; left: 0; width: 125px; height: 3px; background: #50666a; content: ""; }
+.battle-status { padding: 9px 14px; border: 1px solid #5e7272; border-left-width: 5px; color: #3f5f62; background: rgba(80, 102, 106, .1); font-family: "FangSong", serif; font-size: 19px; font-weight: 900; }
+.battlefield-card { position: relative; overflow: hidden; margin-top: 19px; padding: 34px 29px; border: 1px solid #8f8268; background: radial-gradient(ellipse at 50% 24%, rgba(80, 102, 106, .15), transparent 39%), linear-gradient(rgba(74, 72, 63, .04) 1px, transparent 1px), linear-gradient(90deg, rgba(74, 72, 63, .04) 1px, transparent 1px), rgba(228, 217, 190, .94); background-size: auto, 27px 27px, 27px 27px, auto; color: #2d322e; box-shadow: 0 16px 36px rgba(55, 49, 39, .18); }
+.battlefield-card::before, .battlefield-card::after { position: absolute; width: 55px; height: 55px; border-color: #657573; content: ""; pointer-events: none; }
+.battlefield-card::before { top: 12px; left: 12px; border-top: 2px solid; border-left: 2px solid; }
+.battlefield-card::after { right: 12px; bottom: 12px; border-right: 2px solid; border-bottom: 2px solid; }
+.battlefield-region { color: #526a6c; font-family: Consolas, monospace; font-size: 19px; font-weight: 800; letter-spacing: 3px; text-align: center; }
+.battlefield-title { margin-top: 8px; font-family: "STKaiti", "KaiTi", serif; font-size: 42px; font-weight: 900; text-align: center; }
+.battlefield-criteria { max-width: 680px; margin: 18px auto 0; color: #66675f; font-size: 22px; line-height: 1.55; text-align: center; }
+.battlefield-criteria text { display: block; margin-bottom: 4px; color: #536b6c; font-family: "FangSong", serif; font-size: 17px; font-weight: 800; letter-spacing: 3px; }
+.timer-wrap { display: flex; justify-content: center; margin: 33px 0 23px; }
+.timer-ring { display: flex; align-items: center; justify-content: center; width: 270px; height: 270px; border: 1px solid rgba(64, 85, 86, .42); border-radius: 50%; box-shadow: 0 0 30px rgba(60, 79, 80, .14); }
+.timer-inner { display: flex; flex-direction: column; align-items: center; justify-content: center; width: 234px; height: 234px; border: 1px solid #8d8169; border-radius: 50%; background: #eee5cf; box-shadow: inset 0 0 25px rgba(65, 58, 45, .13); }
+.timer-value { font-family: Consolas, monospace; font-size: 56px; font-weight: 900; letter-spacing: 1px; }
+.timer-plan { margin-top: 8px; color: #716f65; font-size: 19px; }
+.timer-actions { position: relative; z-index: 2; display: flex; justify-content: center; gap: 11px; }
+.timer-button { width: 220px; border-color: #506168; }
+.timer-button--withdraw { color: #5e5b54; }
+.settlement-card { margin-top: 25px; }
+.outcome-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 11px; }
+.outcome-card { min-height: 132px; padding: 17px; border: 1px solid #9c8d70; border-top: 3px solid #8a7b5e; background: rgba(245, 237, 217, .62); }
+.outcome-card--active { border-color: #536b6c; border-top-color: #536b6c; background: rgba(80, 102, 106, .12); box-shadow: inset 0 -4px rgba(80, 102, 106, .16); }
+.outcome-title { color: #30342f; font-size: 25px; font-weight: 900; }
+.outcome-description { margin-top: 6px; color: #706e64; font-size: 19px; line-height: 1.45; }
+.evidence-note { display: block; }
+.character-count { margin-top: 7px; color: #776258; font-family: Consolas, monospace; font-size: 18px; text-align: right; }
+.character-count--ok { color: #4e696a; }
+.score-field { max-width: 230px; }
+.image-grid { display: flex; flex-wrap: wrap; gap: 11px; }
+.image-tile, .image-add { position: relative; width: 148px; height: 148px; overflow: hidden; border: 1px dashed #8f8064; background: rgba(245, 238, 220, .64); }
+.image-tile image { width: 100%; height: 100%; }
+.image-tile > text { position: absolute; top: 5px; right: 5px; display: flex; align-items: center; justify-content: center; width: 33px; height: 33px; border: 1px solid #d7cdb6; border-radius: 50%; background: rgba(45, 52, 49, .84); color: white; font-size: 24px; }
+.image-add { display: flex; flex-direction: column; align-items: center; justify-content: center; color: #747168; }
+.image-add > text { color: #536b6c; font-size: 41px; }
+.image-add small { margin-top: 2px; font-size: 18px; }
+.settlement-submit { margin-top: 27px; }
+.result-page { text-align: center; }
+.result-seal { display: flex; align-items: center; justify-content: center; width: 126px; height: 126px; margin: 20px auto 23px; border: 2px solid #60716f; color: #f0e7d1; background: #536866; font-family: "STKaiti", "KaiTi", serif; font-size: 61px; font-weight: 900; box-shadow: inset 0 0 0 8px #d2c5a8, 0 0 0 1px #76684f; }
+.result-card { text-align: left; }
+.result-status-row { display: flex; justify-content: space-between; padding: 14px 0; border-top: 1px solid #a89b81; color: #686a62; font-size: 23px; }
+.result-status-row text:last-child { color: #4c696a; font-weight: 900; }
+.result-evidence { padding: 12px 0; border-top: 1px solid #a89b81; color: #3f443f; font-size: 22px; line-height: 1.6; word-break: break-all; }
+.result-image { width: 178px; height: 178px; margin: 8px; border: 1px solid #667574; }
+.result-secondary { margin-top: 11px; }
+
+@media (max-width: 600px) {
+  .outcome-grid { grid-template-columns: 1fr; }
+  .outcome-card { min-height: auto; }
+  .timer-ring { width: 234px; height: 234px; }
+  .timer-inner { width: 204px; height: 204px; }
+  .timer-value { font-size: 47px; }
+}
