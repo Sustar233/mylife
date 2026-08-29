@@ -40,12 +40,21 @@
 }
 
 .map-command-copy { display: flex; min-width: 0; flex-direction: column; }
+.map-back { margin-bottom: 2px; color: #e1d19f; font-size: 14px; font-weight: 800; }
+.territory-map--region .map-command-bar { min-height: 110px; }
 .map-command-kicker { color: #d7c698; font-size: 15px; font-weight: 800; letter-spacing: 3px; }
 .map-command-title { color: #f1ead8; font-family: "STKaiti", "KaiTi", serif; font-size: 25px; font-weight: 900; line-height: 1.1; }
 .map-command-meta { margin-top: 2px; color: #c5c5b7; font-size: 16px; }
 .map-mode-switch { display: flex; flex: 0 0 auto; padding: 3px; border: 1px solid #8b8e81; background: #343a35; }
 .map-mode { padding: 10px 16px; color: #b7bbb0; font-size: 18px; font-weight: 800; }
 .map-mode--active { background: #d6c8a8; color: #354341; }
+
+.map-navigation { position: absolute; z-index: 7; left: 18px; bottom: 51px; display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+.map-navigation-toggle { padding: 5px 8px; border: 1px solid #716c5e; background: rgba(239, 231, 208, .92); color: #59625c; font-size: 13px; font-weight: 900; }
+.map-navigation-toggle--active { border-color: #4c6866; background: #4c6866; color: #f0e6ce; }
+.map-navigation-buttons { display: grid; grid-template-columns: repeat(4, 31px); border: 1px solid #756e5c; background: rgba(239, 231, 208, .94); }
+.map-navigation-buttons text { display: flex; align-items: center; justify-content: center; min-height: 29px; border-right: 1px solid rgba(117, 110, 92, .35); border-bottom: 1px solid rgba(117, 110, 92, .35); color: #405552; font-size: 15px; font-weight: 900; }
+.map-navigation-buttons .map-zoom-readout { grid-column: span 2; font-family: Consolas, monospace; font-size: 11px; }
 
 .territory-node {
   position: absolute;
@@ -138,6 +147,7 @@
 
 @media (min-width: 900px) {
   .map-command-kicker { font-size: 15PX; }
+  .map-back { font-size: 14PX; }
   .map-command-meta { font-size: 16PX; }
   .territory-node { width: 164PX; }
   .node-designation { font-size: 13PX; }
@@ -153,10 +163,17 @@
 @media (max-width: 600px) {
   .territory-map { height: 420PX; }
   .map-command-bar { min-height: 64PX; padding: 9PX 10PX 8PX 14PX; }
+  .territory-map--region .map-command-bar { min-height: 82PX; }
+  .map-back { font-size: 10PX; }
   .map-command-kicker { font-size: 10PX; }
   .map-command-title { font-size: 18PX; }
   .map-command-meta { font-size: 11PX; }
   .map-mode { padding: 7PX 8PX; font-size: 13PX; }
+  .map-navigation { left: 7PX; bottom: 8PX; gap: 3PX; }
+  .map-navigation-toggle { padding: 3PX 5PX; font-size: 8PX; }
+  .map-navigation-buttons { grid-template-columns: repeat(4, 24PX); }
+  .map-navigation-buttons text { min-height: 21PX; font-size: 11PX; }
+  .map-navigation-buttons .map-zoom-readout { font-size: 8PX; }
   .territory-node { width: 64PX; }
   .node-designation { font-size: 9PX; }
   .node-label-row { min-height: 24PX; padding: 3PX 4PX; }

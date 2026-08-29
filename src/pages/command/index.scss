@@ -15,6 +15,30 @@
 .operation-label { color: #6f7068; font-size: 19px; }
 .operation-title { margin-top: 2px; color: #30342f; font-size: 24px; font-weight: 900; }
 .operation-arrow, .row-arrow { color: #647574; font-size: 39px; }
+.treasury-summary { display: flex; align-items: center; gap: 13px; margin-top: 18px; padding: 12px 16px; border: 1px solid #8e8168; border-left: 5px solid #687977; background: rgba(235, 225, 201, .82); box-shadow: 0 7px 18px rgba(55, 48, 37, .11); }
+.treasury-mark { display: flex; flex: 0 0 45px; align-items: center; justify-content: center; width: 45px; height: 45px; color: #f1e8d3; background: #68736a; font-family: "STKaiti", "KaiTi", serif; font-size: 24px; font-weight: 900; }
+.treasury-copy { min-width: 0; flex: 1; }
+.treasury-copy text, .treasury-copy small { display: block; }
+.treasury-copy text { color: #353b36; font-size: 19px; font-weight: 900; }
+.treasury-copy small { margin-top: 2px; overflow: hidden; color: #777267; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
+.treasury-balance { flex: 0 0 auto; min-width: 68px; text-align: center; }
+.treasury-balance text, .treasury-balance small { display: block; }
+.treasury-balance text { color: #4c6768; font-family: Georgia, serif; font-size: 24px; font-weight: 900; }
+.treasury-balance small { color: #777166; font-size: 12px; }
+.agenda-card { padding-top: 21px; }
+.agenda-list { border-top: 1px solid #a99b80; }
+.agenda-row { display: flex; align-items: center; gap: 13px; min-height: 74px; border-bottom: 1px solid #b3a68c; }
+.agenda-row:last-child { border-bottom: 0; }
+.agenda-time { display: flex; flex: 0 0 48px; flex-direction: column; align-items: center; justify-content: center; min-height: 48px; border: 1px solid #71827c; color: #f0ead9; background: #5d706d; }
+.agenda-time text { font-family: Georgia, serif; font-size: 18px; font-weight: 900; }
+.agenda-time small { font-size: 11px; }
+.agenda-copy { flex: 1; min-width: 0; }
+.agenda-title { overflow: hidden; color: #323732; font-size: 20px; font-weight: 900; text-overflow: ellipsis; white-space: nowrap; }
+.agenda-title text { margin-left: 9px; color: #806849; font-size: 14px; font-weight: 800; }
+.agenda-meta { margin-top: 3px; color: #777267; font-size: 15px; }
+.agenda-row--overdue .agenda-time { border-color: #786052; background: #74675b; }
+.agenda-row--due .agenda-time { border-color: #8c794f; background: #8a7752; }
+.agenda-row--frontline .agenda-time { background: #506a6b; }
 
 .metric-grid { display: grid; grid-template-columns: 1fr 1.35fr 1fr; gap: 12px; margin-top: 22px; }
 .metric-card { position: relative; min-height: 150px; padding: 21px; border: 1px solid #9a8b70; border-top: 3px solid #50666a; background: linear-gradient(145deg, rgba(245, 237, 217, .88), rgba(224, 212, 184, .88)); box-shadow: 0 9px 20px rgba(61, 54, 43, .14); }
@@ -27,6 +51,21 @@
 .metric-value text { color: #787366; font-family: inherit; font-size: 19px; }
 .metric-foot { color: #787366; font-size: 19px; }
 .metric-card--risk .metric-value { color: #745d54; }
+
+.troop-advice { padding-top: 21px; }
+.troop-allocation-bar { display: flex; height: 13px; margin-top: 14px; overflow: hidden; border: 1px solid #817760; background: #c7bca3; }
+.troop-allocation-fill--recover { background: #8c674f; }
+.troop-allocation-fill--review { background: #9a7d4f; }
+.troop-allocation-fill--attack { background: #4f7171; }
+.troop-advice-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-top: 12px; }
+.troop-advice-item { min-height: 125px; padding: 13px; border: 1px solid #a3977d; border-top: 4px solid #4f7171; background: rgba(244, 236, 216, .62); }
+.troop-advice-item--recover { border-top-color: #8c674f; }
+.troop-advice-item--review { border-top-color: #9a7d4f; }
+.troop-advice-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.troop-advice-head text { color: #394744; font-size: 21px; font-weight: 900; }
+.troop-advice-head strong { color: #4e6665; font-family: Georgia, serif; font-size: 22px; }
+.troop-advice-reason { margin-top: 6px; color: #706b5f; font-size: 17px; line-height: 1.45; }
+.troop-advice-targets { margin-top: 7px; overflow: hidden; color: #4d6260; font-size: 15px; font-weight: 800; text-overflow: ellipsis; white-space: nowrap; }
 
 .order-ribbon { display: inline-block; margin: -4px 0 20px; padding: 7px 12px; border-left: 4px solid #bcc5ba; background: #52696b; color: #f3ebd7; font-family: "STKaiti", "KaiTi", serif; font-size: 19px; font-weight: 900; letter-spacing: 2px; }
 .priority-order--danger::before { background: linear-gradient(90deg, #655f55, #9a825a); }
@@ -60,14 +99,73 @@
 .campaign-mini--active { border-color: #5b6f70; border-left-color: #40595c; background: rgba(80, 102, 106, .13); }
 .campaign-mini-name { overflow: hidden; color: #313530; font-size: 23px; font-weight: 900; text-overflow: ellipsis; white-space: nowrap; }
 .campaign-mini-meta { margin-top: 6px; color: #757166; font-size: 18px; }
+.mobile-command-more { display: none; }
+.command-more-content { display: block; }
 
 @keyframes op-pulse { 0%, 100% { box-shadow: 0 0 0 5px rgba(80, 102, 106, .16); } 50% { box-shadow: 0 0 0 11px rgba(80, 102, 106, .025); } }
 
 @media (max-width: 600px) {
-  .metric-grid { grid-template-columns: repeat(2, 1fr); }
-  .metric-card--risk { grid-column: 1 / -1; min-height: auto; }
+  .command-page { padding: 14PX 11PX 82PX; }
+  .command-header { padding-bottom: 11PX; }
+  .commander-seal { width: 48PX; height: 48PX; font-size: 24PX; box-shadow: inset 0 0 0 4PX #d4c8ab, 0 0 0 1PX #74684f; }
+  .commander-seal small { margin-left: -3PX; font-size: 12PX; }
+
+  .command-page .npc-guide { gap: 10PX; margin-top: 10PX; padding: 8PX 11PX 8PX 8PX; }
+  .command-page .npc-portrait-frame { width: 48PX; height: 48PX; }
+  .command-page .npc-identity { flex-direction: row; align-items: baseline; gap: 7PX; }
+  .command-page .npc-identity text { font-size: 17PX; }
+  .command-page .npc-identity small { font-size: 11PX; }
+  .command-page .npc-line { display: -webkit-box; margin-top: 2PX; overflow: hidden; font-size: 13PX; line-height: 1.35; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+
+  .active-operation { gap: 10PX; margin-top: 10PX; padding: 10PX 12PX; }
+  .operation-label { font-size: 12PX; }
+  .operation-title { font-size: 15PX; }
+  .treasury-summary { gap: 8PX; margin-top: 9PX; padding: 8PX 10PX; }
+  .treasury-mark { flex-basis: 34PX; width: 34PX; height: 34PX; font-size: 19PX; }
+  .treasury-copy text { font-size: 15PX; }
+  .treasury-balance { min-width: 42PX; }
+  .treasury-balance text { font-size: 18PX; }
+
+  .agenda-card { padding: 13PX 12PX 8PX; }
+  .agenda-row { gap: 8PX; min-height: 55PX; }
+  .agenda-time { flex-basis: 38PX; min-height: 38PX; }
+  .agenda-time text { font-size: 15PX; }
+  .agenda-title { font-size: 15PX; }
+  .agenda-title text { margin-left: 5PX; font-size: 11PX; }
+  .agenda-meta { font-size: 12PX; }
+
+  .metric-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6PX; margin-top: 10PX; }
+  .metric-card, .metric-card--risk { grid-column: auto; min-height: 82PX; padding: 9PX 8PX; }
+  .metric-card::after { right: 6PX; bottom: 5PX; font-size: 10PX; }
+  .metric-label { overflow: hidden; font-size: 12PX; letter-spacing: 0; text-overflow: ellipsis; white-space: nowrap; }
+  .metric-value { margin: 5PX 0 3PX; font-size: 24PX; }
+  .metric-value text { font-size: 11PX; }
+  .metric-foot { display: none; }
+  .metric-card .progress-track { height: 4PX; }
+
+  .priority-order { padding: 13PX; }
+  .order-ribbon { margin: -2PX 0 12PX; padding: 5PX 8PX; font-size: 14PX; letter-spacing: 1PX; }
+  .order-main { align-items: flex-start; gap: 11PX; }
+  .order-map-mark { width: 52PX; height: 52PX; border-width: 1PX; font-size: 24PX; box-shadow: inset 0 0 0 3PX #cfc1a3; }
+  .order-meta { font-size: 12PX; letter-spacing: 0; }
+  .order-title { margin-top: 2PX; font-size: 24PX; }
+  .order-criteria { margin-top: 4PX; font-size: 13PX; line-height: 1.4; }
+  .order-button { min-height: 44PX; margin-top: 12PX; font-size: 15PX; }
+
+  .mobile-command-more { display: flex; align-items: center; justify-content: space-between; gap: 10PX; margin-top: 10PX; padding: 11PX 12PX; border: 1PX solid #8e8168; border-left: 4PX solid #687977; background: rgba(235, 225, 201, .82); box-shadow: 0 4PX 12PX rgba(55, 48, 37, .1); }
+  .mobile-command-more-copy { min-width: 0; }
+  .mobile-command-more-copy text, .mobile-command-more-copy small { display: block; }
+  .mobile-command-more-copy text { color: #353b36; font-size: 15PX; font-weight: 900; }
+  .mobile-command-more-copy small { margin-top: 2PX; overflow: hidden; color: #777267; font-size: 11PX; text-overflow: ellipsis; white-space: nowrap; }
+  .mobile-command-more-action { flex: 0 0 auto; color: #50686a; font-size: 13PX; font-weight: 900; }
+  .mobile-command-more-action > text { margin-left: 2PX; font-size: 16PX; }
+  .command-more-content { display: none; }
+  .command-more-content--open { display: block; }
+
   .command-columns { grid-template-columns: 1fr; }
   .campaign-mini-grid { grid-template-columns: 1fr; }
+  .troop-advice-grid { grid-template-columns: 1fr; }
+  .troop-advice-item { min-height: auto; }
   .hero-title { font-size: 47px; }
-  .commander-seal { width: 70px; height: 70px; font-size: 30px; }
+  .treasury-copy small { display: none; }
 }

@@ -1,0 +1,68 @@
+.npc-roster-settings { overflow: visible; }
+.npc-roster-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; }
+.npc-roster-head .section-title { margin: 4px 0 0; }
+.npc-roster-actions { display: flex; align-items: center; gap: 10px; color: #68726d; font-size: 14px; }
+.npc-roster-actions button, .npc-create-buttons button, .npc-library-card > button { margin: 0; border: 1px solid #81775f; border-radius: 0; color: #435d5d; background: rgba(238, 229, 207, .78); font-size: 13px; line-height: 2.2; }
+.npc-roster-actions button::after, .npc-create-buttons button::after, .npc-library-card > button::after { border: 0; }
+.npc-roster-note { margin-top: 12px; padding: 8px 11px; border-left: 3px solid #6b7a76; color: #6e6d63; background: rgba(80, 102, 106, .08); font-size: 14px; line-height: 1.45; }
+.npc-create-panel { display: grid; grid-template-columns: 132px minmax(0, 1fr); gap: 16px; margin-top: 16px; padding: 15px; border: 1px dashed #8a7d64; background: rgba(241, 232, 209, .68); }
+.npc-create-portrait { position: relative; display: flex; align-items: center; justify-content: center; width: 132px; height: 132px; overflow: hidden; border: 1px solid #817155; color: #687671; background: rgba(91, 109, 107, .08); text-align: center; }
+.npc-create-portrait image { width: 100%; height: 100%; }
+.npc-create-portrait text, .npc-create-portrait small { display: block; }
+.npc-create-portrait text { font-size: 32px; line-height: 1; }
+.npc-create-portrait small { margin-top: 8px; font-size: 13px; }
+.npc-create-loading { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: #f4ecd8; background: rgba(46, 57, 54, .66); font-size: 13px; }
+.npc-create-fields { min-width: 0; }
+.npc-create-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.npc-create-fields input, .npc-create-fields textarea { box-sizing: border-box; width: 100%; padding: 9px 10px; border: 1px solid #9b8f75; border-radius: 0; color: #343b36; background: rgba(252, 247, 231, .72); font-size: 15px; }
+.npc-create-fields textarea { height: 68px; margin-top: 10px; }
+.npc-create-buttons { display: flex; justify-content: flex-end; gap: 8px; margin-top: 10px; }
+.npc-create-buttons .npc-create-submit { color: #f3ead4; border-color: #52696a; background: #52696a; }
+.npc-duty-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 11px; margin-top: 18px; }
+.npc-duty-card { min-width: 0; padding: 14px; border: 1px solid #998a6f; border-top: 4px solid #627674; background: rgba(244, 236, 216, .62); }
+.npc-duty-current { display: flex; align-items: center; gap: 11px; }
+.npc-duty-portrait-wrap { position: relative; flex: 0 0 70px; width: 70px; height: 70px; padding: 3px; border: 1px solid #817155; background: #d1c3a5; }
+.npc-duty-portrait { width: 100%; height: 100%; filter: saturate(.72) contrast(1.03); }
+.npc-duty-portrait-wrap > text { position: absolute; right: -6px; bottom: -6px; display: flex; align-items: center; justify-content: center; width: 27px; height: 27px; color: #f0e8d4; background: #566b6c; font-family: "STKaiti", "KaiTi", serif; font-size: 16px; font-weight: 900; }
+.npc-duty-copy { min-width: 0; }
+.npc-duty-copy small, .npc-duty-copy text { display: block; }
+.npc-duty-copy small { color: #657573; font-size: 13px; font-weight: 900; letter-spacing: 2px; }
+.npc-duty-copy text { margin-top: 2px; color: #303630; font-family: "STKaiti", "KaiTi", serif; font-size: 23px; font-weight: 900; }
+.npc-duty-copy view { margin-top: 2px; color: #777166; font-size: 13px; }
+.npc-duty-description { min-height: 42px; margin-top: 12px; color: #716e64; font-size: 14px; line-height: 1.5; }
+.npc-candidate-list { display: flex; gap: 6px; margin-top: 10px; padding-bottom: 4px; overflow-x: auto; }
+.npc-candidate { flex: 0 0 68px; min-width: 0; padding: 6px 4px; border: 1px solid #a09379; color: #6f6d64; background: rgba(239, 229, 205, .6); text-align: center; }
+.npc-candidate image { display: block; width: 38px; height: 38px; margin: 0 auto; border-radius: 50%; filter: saturate(.55); }
+.npc-candidate text { display: block; margin-top: 4px; overflow: hidden; font-size: 11px; font-weight: 800; text-overflow: ellipsis; white-space: nowrap; }
+.npc-candidate--active { border-color: #4f696a; color: #405e60; background: rgba(80, 102, 106, .13); box-shadow: inset 0 -3px #50666a; }
+.npc-candidate--active image { filter: saturate(.8); }
+.npc-library-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 14px; margin-top: 24px; padding-top: 18px; border-top: 1px solid rgba(112, 101, 80, .52); }
+.npc-library-head > text { color: #727168; font-size: 13px; }
+.npc-library-title { margin-top: 3px; color: #303630; font-family: "STKaiti", "KaiTi", serif; font-size: 22px; font-weight: 900; }
+.npc-library-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; margin-top: 12px; }
+.npc-library-card { position: relative; display: grid; grid-template-columns: 84px minmax(0, 1fr); gap: 11px; min-width: 0; padding: 10px; border: 1px solid #a09379; background: rgba(239, 229, 205, .46); }
+.npc-library-card > image { width: 84px; height: 94px; border: 1px solid #81745e; filter: saturate(.7); }
+.npc-library-copy { min-width: 0; }
+.npc-library-copy > view:first-child { display: flex; align-items: center; gap: 7px; }
+.npc-library-copy > view:first-child text { color: #303630; font-family: "STKaiti", "KaiTi", serif; font-size: 19px; font-weight: 900; }
+.npc-library-copy small { padding: 1px 5px; color: #5b6f6e; border: 1px solid #7e908b; font-size: 10px; }
+.npc-library-trait { margin-top: 5px; color: #546966; font-size: 13px; font-weight: 800; }
+.npc-library-description { margin-top: 5px; color: #777166; font-size: 12px; line-height: 1.45; }
+.npc-library-card > button { position: absolute; right: 7px; bottom: 7px; padding: 0 7px; color: #795a4d; font-size: 11px; }
+
+@media (max-width: 800px) {
+  .npc-duty-grid { grid-template-columns: 1fr; }
+  .npc-duty-description { min-height: 0; }
+  .npc-library-grid { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 430px) {
+  .npc-roster-head { flex-direction: column; }
+  .npc-roster-actions { width: 100%; justify-content: space-between; }
+  .npc-create-panel { grid-template-columns: 92px minmax(0, 1fr); gap: 10px; padding: 10px; }
+  .npc-create-portrait { width: 92px; height: 112px; }
+  .npc-create-row { grid-template-columns: 1fr; }
+  .npc-library-head { align-items: flex-start; flex-direction: column; }
+  .npc-library-card { grid-template-columns: 72px minmax(0, 1fr); }
+  .npc-library-card > image { width: 72px; height: 84px; }
+}

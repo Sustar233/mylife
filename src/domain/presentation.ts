@@ -24,6 +24,7 @@ export const EVENT_ICONS: Record<EventType, string> = {
   territory_reviewed: '◆',
   territory_recovered: '✦',
   truce_started: '☾',
+  map_edited: '✎',
   campaign_archived: '▣'
 }
 

@@ -19,7 +19,7 @@ export function NodeDossier({ node, onBegin }: NodeDossierProps) {
     <View className='node-dossier paper-card'>
       <View className='dossier-head'>
         <View>
-          <View className='dossier-region'>{node.region} · {node.kind === 'capital' ? '首都' : node.kind === 'fortress' ? '要塞' : '城池'}</View>
+          <View className='dossier-region'>{node.region} · {node.role === 'campaign_capital' ? '最终首都' : node.role === 'regional_capital' ? '区域主城' : node.kind === 'fortress' ? '要塞据点' : '分支据点'}</View>
           <View className='section-title'>{node.title}</View>
         </View>
         <View className={`status-stamp status-stamp--${node.effectiveOwner}`}>
@@ -75,7 +75,7 @@ export function NodeDossier({ node, onBegin }: NodeDossierProps) {
           if (!disabled) onBegin(minutes, action.mode)
         }}
       >
-        {disabled ? '前置道路尚未打通' : action.label}
+        {disabled ? node.role === 'regional_capital' ? '需先攻克区域全部据点' : node.role === 'campaign_capital' ? '需先控制全部区域主城' : '前置道路尚未打通' : action.label}
       </Button>
     </View>
   )

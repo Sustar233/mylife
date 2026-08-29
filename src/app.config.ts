@@ -2,8 +2,13 @@ export default defineAppConfig({
   pages: [
     'pages/command/index',
     'pages/map/index',
-    'pages/chronicle/index',
-    'pages/battle/index'
+    'pages/chronicle/index'
+  ],
+  subpackages: [
+    {
+      root: 'subpackages',
+      pages: ['battle/index']
+    }
   ],
   window: {
     backgroundTextStyle: 'dark',

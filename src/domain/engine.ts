@@ -1,11 +1,28 @@
 import { getTemplate } from './templates'
+import { upgradeCampaignHierarchy } from './regions'
+import {
+  DEFAULT_NPC_ASSIGNMENTS,
+  getNpcCharacterIds,
+  normalizeCustomNpcCharacters,
+  normalizeNpcAssignments
+} from './npcs'
+import {
+  calculateSessionReward,
+  createInitialRewardSystem,
+  creditSessionReward,
+  upgradeRewardSystem
+} from './rewards'
 import type {
   Campaign,
   CampaignCreationInput,
+  DailyTroopStatus,
+  DependencyEdge,
   DerivedCampaign,
   DerivedTerritoryNode,
   Evidence,
   EvidenceDraft,
+  ReviewRating,
+  ReviewState,
   SessionMode,
   SettlementInput,
   StudySession,
@@ -18,19 +35,25 @@ import { DAY_MS, HOUR_MS, addDays, clamp, isValidUrl, makeId } from './utils'
 export const REVIEW_INTERVAL_DAYS = [1, 3, 7, 14, 30] as const
 export const REVIEW_GRACE_HOURS = 48
 export const MAX_ACTIVE_CAMPAIGNS = 3
+export const CURRENT_WORLD_VERSION = 3 as const
 
 export function createInitialWorldState(now = new Date().toISOString()): WorldState {
   return {
-    version: 1,
+    version: CURRENT_WORLD_VERSION,
     profile: {
       id: 'local_commander',
       displayName: '指挥官',
       timezone: 'Asia/Hong_Kong',
-      weeklyBudget: 300
+      dailyTroops: 90,
+      reminders: { enabled: true, dueSoonHours: 48, dailyBriefHour: 8 },
+      npcAssignments: { ...DEFAULT_NPC_ASSIGNMENTS },
+      customNpcCharacters: []
     },
     campaigns: [],
     sessions: [],
     evidence: [],
+    mapHistories: [],
+    rewards: createInitialRewardSystem(now),
     events: [
       {
         id: makeId('event'),
@@ -71,6 +94,7 @@ export function createCampaignFromTemplate(
       id: nodeIdByKey.get(node.key)!,
       campaignId,
       templateKey: node.key,
+      role: isCapital ? 'campaign_capital' : 'outpost',
       victoryCriteria: isCapital ? input.capitalCriteria : node.victoryCriteria,
       scoreTarget: isCapital ? input.capitalScoreTarget : undefined,
       owner: isImported ? 'self' : 'enemy',
@@ -78,8 +102,8 @@ export function createCampaignFromTemplate(
       state: isImported ? 'controlled' : 'locked',
       accumulatedMinutes: 0,
       review: isImported
-        ? { baseStability: 80, nextReviewAt: addDays(now, 7), step: 2 }
-        : { baseStability: 0, step: 0 }
+        ? { baseStability: 80, nextReviewAt: addDays(now, 7), step: 2, intervalDays: 7, ease: 2.3, successfulReviews: 0, lapses: 0 }
+        : { baseStability: 0, step: 0, intervalDays: 1, ease: 2.3, successfulReviews: 0, lapses: 0 }
     }
   })
 
@@ -91,26 +115,26 @@ export function createCampaignFromTemplate(
     kind: edge.kind ?? 'hard' as const
   }))
 
-  const campaign: Campaign = {
+  const campaign = upgradeCampaignHierarchy({
     id: campaignId,
     title: input.title.trim(),
     templateType: input.templateType,
     goal: input.goal.trim(),
     capitalCriteria: input.capitalCriteria.trim(),
     capitalScoreTarget: input.capitalScoreTarget,
-    weeklyBudget: clamp(input.weeklyBudget, 60, 1680),
+    dailyTroops: clamp(input.dailyTroops, 15, 240),
     status: 'active',
     createdAt: now,
     nodes,
     edges
-  }
+  })
 
   return {
     ...world,
     profile: {
       ...world.profile,
       activeCampaignId: campaignId,
-      weeklyBudget: campaign.weeklyBudget
+      dailyTroops: campaign.dailyTroops
     },
     campaigns: [...world.campaigns, campaign],
     events: [
@@ -204,9 +228,14 @@ export function deriveCampaign(campaign: Campaign, now = new Date().toISOString(
   const nodes = campaign.nodes.map((node) => derived.get(node.id)!)
   const controlledCount = nodes.filter((node) => node.effectiveOwner === 'self').length
   const contestedCount = nodes.filter((node) => node.effectiveState === 'contested' || node.effectiveState === 'lost').length
-  const progressPercent = Math.round((controlledCount / Math.max(1, nodes.length)) * 100)
+  const strategicNodes = nodes.filter((node) => node.role === 'regional_capital' || node.role === 'campaign_capital')
+  const regionalCapitals = nodes.filter((node) => node.role === 'regional_capital')
+  const controlledRegionCount = regionalCapitals.filter((node) => node.effectiveOwner === 'self').length
+  const regionCount = regionalCapitals.length
+  const controlledStrategicCount = strategicNodes.filter((node) => node.effectiveOwner === 'self').length
+  const progressPercent = Math.round((controlledStrategicCount / Math.max(1, strategicNodes.length)) * 100)
 
-  return { ...campaign, nodes, controlledCount, contestedCount, progressPercent }
+  return { ...campaign, nodes, controlledCount, contestedCount, progressPercent, controlledRegionCount, regionCount }
 }
 
 export function deriveWorld(world: WorldState, now = new Date().toISOString()): DerivedCampaign[] {
@@ -236,6 +265,36 @@ export function getSessionActiveSeconds(session: StudySession, now = new Date().
   return session.accumulatedSeconds + live
 }
 
+export function checkpointActiveSessions(world: WorldState, now = new Date().toISOString()): WorldState {
+  if (!world.sessions.some((session) => session.status === 'active' && session.lastResumedAt)) return world
+  return {
+    ...world,
+    sessions: world.sessions.map((session) => session.status === 'active' && session.lastResumedAt
+      ? { ...session, accumulatedSeconds: getSessionActiveSeconds(session, now), lastResumedAt: now }
+      : session)
+  }
+}
+
+export function pauseInterruptedSessions(world: WorldState, now = new Date().toISOString()): WorldState {
+  if (!world.sessions.some((session) => session.status === 'active')) return world
+  return {
+    ...world,
+    sessions: world.sessions.map((session) => {
+      if (session.status !== 'active') return session
+      const sinceCheckpoint = session.lastResumedAt
+        ? Math.max(0, Math.floor((new Date(now).getTime() - new Date(session.lastResumedAt).getTime()) / 1000))
+        : 0
+      return {
+        ...session,
+        status: 'paused' as const,
+        accumulatedSeconds: session.accumulatedSeconds + Math.min(90, sinceCheckpoint),
+        lastResumedAt: undefined,
+        pausedAt: now
+      }
+    })
+  }
+}
+
 export function planSession(
   world: WorldState,
   nodeId: string,
@@ -245,6 +304,11 @@ export function planSession(
   sessionId = makeId('session')
 ): { world: WorldState; session: StudySession } {
   const { campaign } = findNode(world, nodeId)
+  const normalizedMinutes = [15, 25, 45, 60].includes(plannedMinutes) ? plannedMinutes : 25
+  const troops = getDailyTroopStatus(world, scheduledAt, campaign.dailyTroops)
+  if (troops.remainingMinutes < normalizedMinutes) {
+    throw new Error(`今日仅剩 ${troops.remainingMinutes} 分钟兵力，次日 00:00 自动恢复。`)
+  }
   const derivedNode = deriveCampaign(campaign, scheduledAt).nodes.find((node) => node.id === nodeId)!
   if (derivedNode.effectiveState === 'locked') throw new Error('补给道路尚未打通，不能进攻此城。')
   if (mode === 'attack' && derivedNode.effectiveOwner === 'self') throw new Error('己方领地应使用防守复习。')
@@ -255,7 +319,7 @@ export function planSession(
     campaignId: campaign.id,
     nodeId,
     mode,
-    plannedMinutes: [15, 25, 45, 60].includes(plannedMinutes) ? plannedMinutes : 25,
+    plannedMinutes: normalizedMinutes,
     scheduledAt,
     status: 'planned',
     accumulatedSeconds: 0,
@@ -363,9 +427,59 @@ function validateEvidence(drafts: EvidenceDraft[]): EvidenceDraft[] {
   return cleaned
 }
 
-function nextReview(now: string, step: number): { step: number; nextReviewAt: string } {
-  const nextStep = clamp(step, 0, REVIEW_INTERVAL_DAYS.length - 1)
-  return { step: nextStep, nextReviewAt: addDays(now, REVIEW_INTERVAL_DAYS[nextStep]) }
+function ratingEase(rating: ReviewRating, current = 2.3): number {
+  if (rating === 'again') return clamp(current - 0.2, 1.3, 3)
+  if (rating === 'hard') return clamp(current - 0.1, 1.3, 3)
+  if (rating === 'easy') return clamp(current + 0.1, 1.3, 3)
+  return clamp(current, 1.3, 3)
+}
+
+export function scheduleInitialReview(
+  now: string,
+  baseStability: number,
+  baseDays: number,
+  rating: ReviewRating = 'good'
+): ReviewState {
+  const multiplier = rating === 'again' ? 0.5 : rating === 'hard' ? 0.75 : rating === 'easy' ? 1.75 : 1
+  const intervalDays = clamp(Math.round(baseDays * multiplier), 1, 90)
+  return {
+    baseStability: clamp(baseStability + (rating === 'easy' ? 5 : rating === 'again' ? -5 : 0), 0, 100),
+    step: clamp(baseDays >= 3 ? 1 : 0, 0, REVIEW_INTERVAL_DAYS.length - 1),
+    intervalDays,
+    nextReviewAt: addDays(now, intervalDays),
+    ease: ratingEase(rating),
+    successfulReviews: rating === 'again' ? 0 : 1,
+    lapses: rating === 'again' ? 1 : 0
+  }
+}
+
+export function scheduleAdaptiveReview(
+  review: ReviewState,
+  rating: ReviewRating,
+  now = new Date().toISOString(),
+  currentStability = review.baseStability
+): ReviewState {
+  const ease = ratingEase(rating, review.ease ?? 2.3)
+  const fallbackInterval = REVIEW_INTERVAL_DAYS[clamp(review.step, 0, REVIEW_INTERVAL_DAYS.length - 1)]
+  const currentInterval = clamp(review.intervalDays ?? fallbackInterval, 1, 90)
+  const intervalDays = rating === 'again'
+    ? 1
+    : rating === 'hard'
+      ? clamp(Math.round(currentInterval * 1.2), 1, 90)
+      : rating === 'easy'
+        ? clamp(Math.round(currentInterval * (ease + 0.45)), 2, 90)
+        : clamp(Math.round(currentInterval * ease), 1, 90)
+  const stabilityDelta = rating === 'again' ? -15 : rating === 'hard' ? 10 : rating === 'easy' ? 25 : 20
+  const stepDelta = rating === 'again' ? -1 : rating === 'hard' ? 0 : rating === 'easy' ? 2 : 1
+  return {
+    baseStability: clamp(currentStability + stabilityDelta, 0, 100),
+    step: clamp(review.step + stepDelta, 0, REVIEW_INTERVAL_DAYS.length - 1),
+    intervalDays,
+    nextReviewAt: addDays(now, intervalDays),
+    ease,
+    successfulReviews: rating === 'again' ? 0 : (review.successfulReviews ?? 0) + 1,
+    lapses: (review.lapses ?? 0) + (rating === 'again' ? 1 : 0)
+  }
 }
 
 export function settleSession(
@@ -398,6 +512,15 @@ export function settleSession(
     createdAt: now
   }))
   const evidenceIds = evidence.map((item) => item.id)
+  const reviewRating = input.reviewRating ?? (input.outcome === 'failed' ? 'again' : input.outcome === 'partial' ? 'hard' : 'good')
+  const sessionReward = calculateSessionReward({
+    mode: target.mode,
+    outcome: input.outcome,
+    nodeRole: node.role,
+    earnedMinutes,
+    evidenceCount: evidence.length,
+    seed: input.clientMutationId
+  })
 
   let updatedNode: TerritoryNode = {
     ...node,
@@ -413,7 +536,7 @@ export function settleSession(
         ...updatedNode,
         owner: 'self',
         state: 'controlled',
-        review: { baseStability: 60, ...nextReview(now, 0) }
+        review: scheduleInitialReview(now, 60, 1, reviewRating)
       }
       eventType = 'territory_captured'
       eventTitle = `${node.title}已被攻克`
@@ -423,25 +546,22 @@ export function settleSession(
         ...updatedNode,
         owner: 'self',
         state: 'controlled',
-        review: { baseStability: 50, ...nextReview(now, 1) }
+        review: scheduleInitialReview(now, 50, 3, reviewRating)
       }
       eventType = 'territory_recovered'
       eventTitle = `${node.title}重归版图`
       eventDetail = '领地稳定度恢复到 50，3 天后需要再次巩固。'
     } else {
-      const followingStep = clamp(node.review.step + 1, 0, REVIEW_INTERVAL_DAYS.length - 1)
+      const adaptiveReview = scheduleAdaptiveReview(node.review, reviewRating, now, derivedNode.effectiveStability)
       updatedNode = {
         ...updatedNode,
         owner: 'self',
         state: 'controlled',
-        review: {
-          baseStability: clamp(derivedNode.effectiveStability + 20, 0, 100),
-          ...nextReview(now, followingStep)
-        }
+        review: adaptiveReview
       }
       eventType = 'territory_reviewed'
       eventTitle = `${node.title}防线巩固`
-      eventDetail = `稳定度提升至 ${updatedNode.review.baseStability}。`
+      eventDetail = `稳定度调整至 ${updatedNode.review.baseStability}，${updatedNode.review.intervalDays} 天后再次复习。`
     }
   } else if (target.mode === 'attack') {
     updatedNode = { ...updatedNode, state: 'sieging' }
@@ -449,8 +569,12 @@ export function settleSession(
       ? `投入 ${earnedMinutes} 分钟并取得部分成果，围城进度保留。`
       : `投入 ${earnedMinutes} 分钟完成侦察，尚未达到占领标准。`
   } else {
+    updatedNode = {
+      ...updatedNode,
+      review: scheduleAdaptiveReview(node.review, reviewRating, now, derivedNode.effectiveStability)
+    }
     eventTitle = `${node.title}防守未决`
-    eventDetail = '本次复习尚未达到巩固标准，原定复习期限保持不变。'
+    eventDetail = `本次复习尚未巩固，${updatedNode.review.intervalDays} 天后重新整队。`
   }
 
   const updatedSession: StudySession = {
@@ -462,7 +586,9 @@ export function settleSession(
     outcome: input.outcome,
     evidenceIds,
     clientMutationId: input.clientMutationId,
-    score: input.score
+    score: input.score,
+    reviewRating,
+    reward: sessionReward
   }
 
   let nextWorld = replaceCampaignNode(world, campaign.id, updatedNode)
@@ -487,7 +613,7 @@ export function settleSession(
       ...nextWorld.events
     ]
   }
-  return nextWorld
+  return creditSessionReward(nextWorld, sessionId, sessionReward, `${node.title}行动军饷`, now)
 }
 
 export function setTruce(
@@ -532,6 +658,43 @@ export function setTruce(
   }
 }
 
+type UpgradeableWorldState = Omit<WorldState, 'version' | 'rewards'> & {
+  version?: number
+  rewards?: WorldState['rewards']
+}
+
+export function upgradeWorldState(world: UpgradeableWorldState): WorldState {
+  const dailyTroops = world.profile.dailyTroops
+    ?? Math.max(30, Math.round((world.profile.weeklyBudget ?? 300) / 5 / 15) * 15)
+  const customNpcCharacters = normalizeCustomNpcCharacters(world.profile.customNpcCharacters)
+  return {
+    ...world,
+    version: CURRENT_WORLD_VERSION,
+    profile: {
+      ...world.profile,
+      dailyTroops,
+      reminders: world.profile.reminders ?? { enabled: true, dueSoonHours: 48, dailyBriefHour: 8 },
+      customNpcCharacters,
+      npcAssignments: normalizeNpcAssignments(world.profile.npcAssignments, getNpcCharacterIds(customNpcCharacters))
+    },
+    campaigns: world.campaigns.map(upgradeCampaignHierarchy).map((campaign) => ({
+      ...campaign,
+      nodes: campaign.nodes.map((node) => ({
+        ...node,
+        review: {
+          ...node.review,
+          intervalDays: node.review.intervalDays ?? REVIEW_INTERVAL_DAYS[clamp(node.review.step, 0, REVIEW_INTERVAL_DAYS.length - 1)],
+          ease: node.review.ease ?? 2.3,
+          successfulReviews: node.review.successfulReviews ?? 0,
+          lapses: node.review.lapses ?? 0
+        }
+      }))
+    })),
+    mapHistories: world.mapHistories ?? [],
+    rewards: upgradeRewardSystem(world.rewards)
+  }
+}
+
 export function setActiveCampaign(world: WorldState, campaignId: string): WorldState {
   if (!world.campaigns.some((campaign) => campaign.id === campaignId)) return world
   return { ...world, profile: { ...world.profile, activeCampaignId: campaignId } }
@@ -569,12 +732,40 @@ export function getMostUrgentNode(world: WorldState, now = new Date().toISOStrin
   return nodes.find((node) => node.effectiveState === 'available' || node.effectiveState === 'sieging')
 }
 
-export function getCompletedMinutesThisWeek(world: WorldState, now = new Date().toISOString()): number {
-  const current = new Date(now)
-  const day = (current.getDay() + 6) % 7
-  const weekStart = new Date(current.getTime() - day * DAY_MS)
-  weekStart.setHours(0, 0, 0, 0)
-  return world.sessions
-    .filter((session) => session.status === 'settled' && session.endedAt && new Date(session.endedAt) >= weekStart)
-    .reduce((total, session) => total + Math.ceil(session.accumulatedSeconds / 60), 0)
+function dayKeyAtTimezone(iso: string, timezone: string): string {
+  try {
+    return new Intl.DateTimeFormat('en-CA', {
+      timeZone: timezone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    }).format(new Date(iso))
+  } catch {
+    return iso.slice(0, 10)
+  }
+}
+
+export function getDailyTroopStatus(
+  world: WorldState,
+  now = new Date().toISOString(),
+  quotaOverride?: number
+): DailyTroopStatus {
+  const timezone = world.profile.timezone || 'Asia/Hong_Kong'
+  const dayKey = dayKeyAtTimezone(now, timezone)
+  const quotaMinutes = clamp(quotaOverride ?? world.profile.dailyTroops ?? 90, 15, 240)
+  const spentMinutes = world.sessions
+    .filter((session) => {
+      if (session.status === 'planned') return false
+      const reference = session.startedAt ?? session.scheduledAt
+      return dayKeyAtTimezone(reference, timezone) === dayKey
+    })
+    .reduce((total, session) => total + Math.ceil(getSessionActiveSeconds(session, now) / 60), 0)
+  const remainingMinutes = Math.max(0, quotaMinutes - spentMinutes)
+  return {
+    quotaMinutes,
+    spentMinutes,
+    remainingMinutes,
+    percentRemaining: Math.round(remainingMinutes / Math.max(1, quotaMinutes) * 100),
+    dayKey
+  }
 }

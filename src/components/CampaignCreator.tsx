@@ -18,7 +18,7 @@ export function CampaignCreator({ onCreated }: CampaignCreatorProps) {
   const [goal, setGoal] = useState(template.defaultGoal)
   const [capitalCriteria, setCapitalCriteria] = useState(template.defaultCapitalCriteria)
   const [scoreTarget, setScoreTarget] = useState(template.defaultScoreTarget ?? 80)
-  const [weeklyBudget, setWeeklyBudget] = useState(300)
+  const [dailyTroops, setDailyTroops] = useState(90)
   const [importedKeys, setImportedKeys] = useState<string[]>([])
 
   const selectTemplate = (type: TemplateType) => {
@@ -42,15 +42,19 @@ export function CampaignCreator({ onCreated }: CampaignCreatorProps) {
       Taro.showToast({ title: '请补全战役目标', icon: 'none' })
       return
     }
-    actions.createCampaign({
+    const result = actions.createCampaign({
       templateType,
       title,
       goal,
       capitalCriteria,
       capitalScoreTarget: templateType === 'exam' ? scoreTarget : undefined,
-      weeklyBudget,
+      dailyTroops,
       importedTemplateKeys: importedKeys
     })
+    if (!result.ok) {
+      Taro.showToast({ title: result.message, icon: 'none' })
+      return
+    }
     Taro.showToast({ title: '战役地图已生成', icon: 'success' })
     onCreated?.()
   }
@@ -101,15 +105,15 @@ export function CampaignCreator({ onCreated }: CampaignCreatorProps) {
         </>
       )}
 
-      <Text className='field-label'>每周可调遣时间</Text>
+      <Text className='field-label'>每日恢复兵力</Text>
       <View className='chip-row'>
-        {[180, 300, 420, 600].map((minutes) => (
+        {[30, 60, 90, 120].map((minutes) => (
           <View
             key={minutes}
-            className={`chip ${weeklyBudget === minutes ? 'chip--active' : ''}`}
-            onClick={() => setWeeklyBudget(minutes)}
+            className={`chip ${dailyTroops === minutes ? 'chip--active' : ''}`}
+            onClick={() => setDailyTroops(minutes)}
           >
-            {minutes / 60} 小时
+            {minutes} 分钟/日
           </View>
         ))}
       </View>

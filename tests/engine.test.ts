@@ -3,14 +3,29 @@ import { describe, it } from 'node:test'
 import {
   createCampaignFromTemplate,
   createInitialWorldState,
+  checkpointActiveSessions,
   deriveCampaign,
+  getDailyTroopStatus,
   pauseSession,
+  pauseInterruptedSessions,
   planSession,
   setTruce,
   settleSession,
   startSession
 } from '../src/domain/engine'
+import {
+  addDependencyToCampaign,
+  addOutpostToCampaign,
+  addRegionToCampaign,
+  autoArrangeCampaignMap,
+  getCampaignMapHistoryStatus,
+  undoCampaignMapEdit,
+  redoCampaignMapEdit,
+  updateCampaignNode
+} from '../src/domain/map-editor-engine'
+import { getTroopAllocationAdvice } from '../src/domain/troop-advice'
 import { getTemplate } from '../src/domain/templates'
+import { validateCampaignMap } from '../src/domain/map-planning'
 import type { CampaignCreationInput, TemplateType, WorldState } from '../src/domain/types'
 import { addDays, DAY_MS } from '../src/domain/utils'
 
@@ -25,7 +40,7 @@ function createWorld(type: TemplateType, importedTemplateKeys: string[] = []): W
     goal: template.defaultGoal,
     capitalCriteria: template.defaultCapitalCriteria,
     capitalScoreTarget: template.defaultScoreTarget,
-    weeklyBudget: 300,
+    dailyTroops: 90,
     importedTemplateKeys
   }
   return createCampaignFromTemplate(createInitialWorldState(START), input, START)
@@ -51,16 +66,21 @@ describe('战役生成与前置解锁', () => {
     assert.equal(campaign.nodes.find((node) => node.templateKey === 'core-concept')?.effectiveState, 'locked')
   })
 
-  it('取得成果后占领城池并解锁下一条道路', () => {
+  it('区域全部据点完成后解锁主城，攻克主城后开放下一战区', () => {
     let world = createWorld('stem')
     const foundation = world.campaigns[0].nodes.find((node) => node.templateKey === 'foundation')!
     const notation = world.campaigns[0].nodes.find((node) => node.templateKey === 'notation')!
     world = runSession(world, foundation.id, 'attack', 'achieved')
     world = runSession(world, notation.id, 'attack', 'achieved')
-    const campaign = deriveCampaign(world.campaigns[0], addDays(START, 0.01))
-    const core = campaign.nodes.find((node) => node.templateKey === 'core-concept')!
-    assert.equal(core.effectiveState, 'available')
-    assert.equal(campaign.controlledCount, 2)
+    let campaign = deriveCampaign(world.campaigns[0], addDays(START, 0.01))
+    const regionalCapital = campaign.nodes.find((node) => node.region === '基础边境' && node.role === 'regional_capital')!
+    const coreBefore = campaign.nodes.find((node) => node.templateKey === 'core-concept')!
+    assert.equal(regionalCapital.effectiveState, 'available')
+    assert.equal(coreBefore.effectiveState, 'locked')
+    world = runSession(world, regionalCapital.id, 'attack', 'achieved')
+    campaign = deriveCampaign(world.campaigns[0], addDays(START, 0.02))
+    assert.equal(campaign.nodes.find((node) => node.templateKey === 'core-concept')?.effectiveState, 'available')
+    assert.equal(campaign.controlledRegionCount, 1)
   })
 })
 
@@ -78,7 +98,11 @@ describe('结算、首都和幂等', () => {
   it('考试首都未达目标分数不能攻克', () => {
     const template = getTemplate('exam')
     const allNonCapital = template.nodes.filter((node) => node.kind !== 'capital').map((node) => node.key)
-    const world = createWorld('exam', allNonCapital)
+    let world = createWorld('exam', allNonCapital)
+    const regionalCapitals = world.campaigns[0].nodes.filter((node) => node.role === 'regional_capital')
+    regionalCapitals.forEach((regionalCapital) => {
+      world = runSession(world, regionalCapital.id, 'attack', 'achieved')
+    })
     const capital = world.campaigns[0].nodes.find((node) => node.kind === 'capital')!
     assert.throws(() => runSession(world, capital.id, 'attack', 'achieved', 79), /80 分/)
     const captured = runSession(world, capital.id, 'attack', 'achieved', 80)
@@ -99,6 +123,150 @@ describe('结算、首都和幂等', () => {
     const twice = settleSession(once, planned.session.id, input, addDays(START, 0.02))
     assert.equal(twice.evidence.length, once.evidence.length)
     assert.equal(twice.events.length, once.events.length)
+    assert.equal(twice.rewards.coins, once.rewards.coins)
+    assert.equal(twice.rewards.transactions.length, once.rewards.transactions.length)
+  })
+})
+
+describe('每日兵力与自定义版图', () => {
+  it('兵力按用户时区在次日恢复', () => {
+    let world = createWorld('language')
+    const target = world.campaigns[0].nodes.find((node) => node.templateKey === 'word-camp')!
+    world = runSession(world, target.id, 'attack', 'partial')
+    const today = getDailyTroopStatus(world, addDays(START, 0.01), 90)
+    const tomorrow = getDailyTroopStatus(world, addDays(START, 1.01), 90)
+    assert.ok(today.spentMinutes >= 1)
+    assert.equal(tomorrow.remainingMinutes, 90)
+  })
+
+  it('自定义区域自动包含据点、主城及锁定关系', () => {
+    let world = createWorld('stem')
+    const campaignId = world.campaigns[0].id
+    world = addRegionToCampaign(world, campaignId, {
+      name: '动态规划战区',
+      outpostTitle: '状态定义营地',
+      capitalTitle: '动态规划主城',
+      victoryCriteria: '独立解决一道完整动态规划题',
+      estimatedMinutes: 60
+    }, START)
+    const campaign = deriveCampaign(world.campaigns[0], START)
+    const outpost = campaign.nodes.find((node) => node.region === '动态规划战区' && node.role === 'outpost')!
+    const capital = campaign.nodes.find((node) => node.region === '动态规划战区' && node.role === 'regional_capital')!
+    assert.equal(outpost.effectiveState, 'available')
+    assert.equal(capital.effectiveState, 'locked')
+
+    world = addOutpostToCampaign(world, campaignId, {
+      region: '动态规划战区',
+      title: '状态转移据点',
+      description: '练习状态转移方程',
+      victoryCriteria: '写出三道题的状态转移方程',
+      estimatedMinutes: 45
+    }, START)
+    assert.equal(world.campaigns[0].nodes.filter((node) => node.region === '动态规划战区' && node.role === 'outpost').length, 2)
+  })
+
+  it('参谋分配会用完今日剩余兵力并给出目标', () => {
+    const world = createWorld('stem')
+    const campaign = deriveCampaign(world.campaigns[0], START)
+    const advice = getTroopAllocationAdvice(world, campaign, START)
+    assert.equal(advice.allocatedMinutes, advice.remainingMinutes)
+    assert.equal(advice.remainingMinutes, 90)
+    assert.ok(advice.items.some((item) => item.key === 'attack' && item.nodeIds.length > 0))
+  })
+})
+
+describe('版图校验、版本历史与自动布局', () => {
+  it('新增据点可以撤销并重做且不会影响战史', () => {
+    let world = createWorld('stem')
+    const campaignId = world.campaigns[0].id
+    const beforeCount = world.campaigns[0].nodes.length
+    world = addOutpostToCampaign(world, campaignId, {
+      region: '基础边境',
+      title: '复杂度侦察站',
+      description: '识别复杂度',
+      victoryCriteria: '独立分析三个算法的复杂度',
+      estimatedMinutes: 45
+    }, START)
+    assert.equal(getCampaignMapHistoryStatus(world, campaignId).undoCount, 1)
+    assert.equal(world.campaigns[0].nodes.length, beforeCount + 1)
+    const eventCount = world.events.length
+
+    world = undoCampaignMapEdit(world, campaignId, START)
+    assert.equal(world.campaigns[0].nodes.length, beforeCount)
+    assert.equal(world.events.length, eventCount + 1)
+    assert.equal(getCampaignMapHistoryStatus(world, campaignId).redoCount, 1)
+
+    world = redoCampaignMapEdit(world, campaignId, START)
+    assert.equal(world.campaigns[0].nodes.length, beforeCount + 1)
+  })
+
+  it('撤销版图只恢复结构字段，不回滚之后产生的学习成果', () => {
+    let world = createWorld('stem')
+    const campaignId = world.campaigns[0].id
+    const target = world.campaigns[0].nodes.find((node) => node.templateKey === 'foundation')!
+    const originalTitle = target.title
+    world = updateCampaignNode(world, campaignId, target.id, {
+      title: '重新命名的基础营地',
+      description: target.description,
+      victoryCriteria: target.victoryCriteria,
+      estimatedMinutes: target.estimatedMinutes
+    }, START)
+    world = runSession(world, target.id, 'attack', 'achieved')
+
+    world = undoCampaignMapEdit(world, campaignId, addDays(START, 0.02))
+    const restored = world.campaigns[0].nodes.find((node) => node.id === target.id)!
+    assert.equal(restored.title, originalTitle)
+    assert.equal(restored.owner, 'self')
+    assert.equal(restored.state, 'controlled')
+    assert.ok(restored.accumulatedMinutes > 0)
+    assert.ok(restored.review.nextReviewAt)
+  })
+
+  it('已有学习记录的自定义据点不能被地图撤销移除', () => {
+    let world = createWorld('stem')
+    const campaignId = world.campaigns[0].id
+    world = addOutpostToCampaign(world, campaignId, {
+      region: '基础边境',
+      title: '不可丢失的学习据点',
+      description: '验证地图历史不会删除成果',
+      victoryCriteria: '提交一份完整成果',
+      estimatedMinutes: 25
+    }, START)
+    const customNode = world.campaigns[0].nodes.find((node) => node.title === '不可丢失的学习据点')!
+    world = runSession(world, customNode.id, 'attack', 'achieved')
+
+    assert.throws(
+      () => undoCampaignMapEdit(world, campaignId, addDays(START, 0.02)),
+      /已有学习记录/
+    )
+  })
+
+  it('循环前置和区域内重名会在提交前被阻断', () => {
+    const world = createWorld('stem')
+    const campaign = world.campaigns[0]
+    const foundation = campaign.nodes.find((node) => node.templateKey === 'foundation')!
+    const core = campaign.nodes.find((node) => node.templateKey === 'core-concept')!
+    const notation = campaign.nodes.find((node) => node.templateKey === 'notation')!
+    assert.throws(() => addDependencyToCampaign(world, campaign.id, {
+      from: core.id,
+      to: foundation.id,
+      kind: 'hard'
+    }, START), /循环/)
+    assert.throws(() => updateCampaignNode(world, campaign.id, notation.id, {
+      title: foundation.title,
+      description: notation.description,
+      victoryCriteria: notation.victoryCriteria,
+      estimatedMinutes: notation.estimatedMinutes
+    }, START), /重复节点名称/)
+  })
+
+  it('自动布局为所有据点生成边界内坐标并保持结构合法', () => {
+    const world = createWorld('language')
+    const arranged = autoArrangeCampaignMap(world, world.campaigns[0].id, START)
+    const campaign = arranged.campaigns[0]
+    assert.equal(validateCampaignMap(campaign).filter((item) => item.severity === 'error').length, 0)
+    assert.ok(campaign.nodes.every((node) => node.position.x >= 0 && node.position.x <= 100 && node.position.y >= 0 && node.position.y <= 100))
+    assert.ok(campaign.nodes.filter((node) => node.role === 'outpost').every((node) => node.tacticalPosition))
   })
 })
 
@@ -166,5 +334,20 @@ describe('可中断计时', () => {
     const session = paused.sessions.find((item) => item.id === planned.session.id)!
     assert.equal(session.status, 'paused')
     assert.equal(session.accumulatedSeconds, 95)
+  })
+
+  it('检查点会固化当前时长，重启恢复时不会累计长时间离线时长', () => {
+    const world = createWorld('language')
+    const target = world.campaigns[0].nodes.find((node) => node.templateKey === 'word-camp')!
+    const planned = planSession(world, target.id, 25, 'attack', START, 'checkpoint_session')
+    const active = startSession(planned.world, planned.session.id, START)
+    const checkpointAt = new Date(new Date(START).getTime() + 30_000).toISOString()
+    const checkpointed = checkpointActiveSessions(active, checkpointAt)
+    assert.equal(checkpointed.sessions[0].accumulatedSeconds, 30)
+
+    const reopened = pauseInterruptedSessions(checkpointed, addDays(START, 1))
+    assert.equal(reopened.sessions[0].status, 'paused')
+    assert.equal(reopened.sessions[0].accumulatedSeconds, 120)
+    assert.equal(reopened.sessions[0].lastResumedAt, undefined)
   })
 })

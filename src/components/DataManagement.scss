@@ -1,0 +1,29 @@
+.data-management { overflow: visible; }
+.data-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; }
+.data-head .section-title { margin: 4px 0 0; }
+.data-version { flex: 0 0 auto; padding: 6px 10px; border: 1px solid #7d887f; color: #4f6666; background: rgba(80, 102, 106, .08); font-family: Consolas, monospace; font-size: 16px; }
+.data-stat-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); margin-top: 18px; border: 1px solid #a09378; }
+.data-stat-grid > view { padding: 15px 10px; border-left: 1px solid #aa9d82; text-align: center; }
+.data-stat-grid > view:first-child { border-left: 0; }
+.data-stat-grid text, .data-stat-grid small { display: block; }
+.data-stat-grid text { color: #486568; font-family: Georgia, serif; font-size: 24px; font-weight: 900; }
+.data-stat-grid small { margin-top: 3px; color: #747066; font-size: 14px; }
+.data-actions { display: grid; grid-template-columns: 1.2fr 1fr 1fr; gap: 9px; margin-top: 16px; }
+.data-button { width: 100%; min-height: 58px; padding: 0 12px; font-size: 19px; letter-spacing: 1px; }
+.data-subtitle { margin-top: 18px; color: #3e4f4c; font-size: 19px; font-weight: 900; }
+.data-empty { margin-top: 8px; font-size: 17px; }
+.snapshot-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 0; border-top: 1px solid #ab9d82; }
+.snapshot-row:first-of-type { margin-top: 8px; }
+.snapshot-row > view { min-width: 0; }
+.snapshot-row text, .snapshot-row small { display: block; }
+.snapshot-row text { color: #343934; font-size: 18px; font-weight: 900; }
+.snapshot-row small { margin-top: 3px; color: #7b766a; font-size: 14px; }
+.snapshot-action { flex: 0 0 auto; color: #4a6769 !important; font-size: 16px !important; }
+.storage-warning { margin-top: 12px; padding: 10px 12px; border-left: 4px solid #8b724c; background: rgba(139, 114, 76, .1); color: #705c3d; font-size: 16px; }
+
+@media (max-width: 600px) {
+  .data-stat-grid { grid-template-columns: repeat(2, 1fr); }
+  .data-stat-grid > view:nth-child(3) { border-top: 1px solid #aa9d82; border-left: 0; }
+  .data-stat-grid > view:nth-child(4) { border-top: 1px solid #aa9d82; }
+  .data-actions { grid-template-columns: 1fr; }
+}

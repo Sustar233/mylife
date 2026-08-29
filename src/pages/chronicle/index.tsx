@@ -3,6 +3,10 @@ import { Button, Image, Text, View } from '@tarojs/components'
 import Taro from '@tarojs/taro'
 import { EVENT_ICONS } from '../../domain/presentation'
 import { NpcGuide } from '../../components/NpcGuide'
+import { NpcRosterSettings } from '../../components/NpcRosterSettings'
+import { DataManagement } from '../../components/DataManagement'
+import { RewardStore } from '../../components/RewardStore'
+import { getLearningAnalytics } from '../../domain/analytics'
 import { formatDateTime } from '../../domain/utils'
 import { useWorld } from '../../state/world-context'
 import './index.scss'
@@ -15,6 +19,9 @@ export default function ChroniclePage() {
   const completionRate = settledSessions.length ? Math.round((achievedSessions.length / settledSessions.length) * 100) : 0
   const controlledTotal = campaigns.flatMap((campaign) => campaign.nodes).filter((node) => node.effectiveOwner === 'self').length
   const activeTruce = world.profile.truce && new Date(world.profile.truce.endAt) > new Date(now) ? world.profile.truce : undefined
+  const analytics = useMemo(() => getLearningAnalytics(world, campaigns, now), [world, campaigns, now])
+  const reminderSettings = world.profile.reminders ?? { enabled: true, dueSoonHours: 48 as const, dailyBriefHour: 8 }
+  const chartMax = Math.max(1, ...analytics.daily.map((point) => point.minutes))
 
   const evidenceWithContext = useMemo(() => world.evidence.slice(0, 12).map((item) => {
     const session = world.sessions.find((candidate) => candidate.id === item.sessionId)
@@ -57,7 +64,7 @@ export default function ChroniclePage() {
           <View className='page-title'>疆域纪年</View>
           <View className='page-subtitle'>所有投入与成果都保留，即使领地暂时失守。</View>
         </View>
-        <View className='storage-badge'><Text>本地</Text><small>持久化</small></View>
+        <View className='storage-badge'><Text>安全</Text><small>存档 v{world.version}</small></View>
       </View>
 
       <NpcGuide
@@ -72,6 +79,56 @@ export default function ChroniclePage() {
         <View><Text>{controlledTotal}</Text><small>当前控制领地</small></View>
         <View><Text>{completionRate}%</Text><small>行动达成率</small></View>
       </View>
+
+      <View className='paper-card analytics-card'>
+        <View className='analytics-head'>
+          <View><View className='eyebrow'>INTELLIGENCE REPORT · 军情分析</View><View className='section-title'>近七日战况</View></View>
+          <View className={`analytics-trend ${analytics.trendPercent < 0 ? 'analytics-trend--down' : ''}`}>{analytics.trendPercent >= 0 ? '+' : ''}{analytics.trendPercent}%</View>
+        </View>
+        <View className='analytics-summary'>
+          <View><Text>{analytics.last7Minutes}</Text><small>七日分钟</small></View>
+          <View><Text>{analytics.currentStreak}</Text><small>连续作战天数</small></View>
+          <View><Text>{analytics.dueNext7Days}</Text><small>七日内待复习</small></View>
+          <View><Text>{analytics.overdueCount}</Text><small>告急领地</small></View>
+        </View>
+        <View className='learning-chart'>
+          {analytics.daily.map((point) => (
+            <View key={point.day} className='chart-column'>
+              <View className='chart-value'>{point.minutes || ''}</View>
+              <View className='chart-track'><View className='chart-bar' style={{ height: `${Math.max(point.minutes ? 8 : 0, point.minutes / chartMax * 100)}%` }} /></View>
+              <View className='chart-label'>{point.label}</View>
+            </View>
+          ))}
+        </View>
+        {analytics.weakTerritories.length > 0 && (
+          <View className='weak-list'>
+            <View className='analytics-subtitle'>薄弱领地</View>
+            {analytics.weakTerritories.slice(0, 3).map((item) => (
+              <View key={item.nodeId} className='weak-row'>
+                <View><Text>{item.title}</Text><small>{item.campaignTitle} · 未达成 {item.failures} 次</small></View>
+                <Text>稳定 {item.stability}</Text>
+              </View>
+            ))}
+          </View>
+        )}
+      </View>
+
+      <View className='paper-card reminder-card'>
+        <View className='reminder-copy'>
+          <View className='eyebrow'>WAR DRUM · 应用内提醒</View>
+          <View className='section-title'>每日军报</View>
+          <View className='muted'>司令部角标会显示即将到期和已经失守的领地。正式微信推送仍需配置订阅消息模板。</View>
+        </View>
+        <View className='reminder-settings'>
+          <View className='setting-row'><Text>提醒状态</Text><View className='chip-row'><View className={`chip ${reminderSettings.enabled ? 'chip--active' : ''}`} onClick={() => actions.updateReminders({ enabled: true })}>开启</View><View className={`chip ${!reminderSettings.enabled ? 'chip--active' : ''}`} onClick={() => actions.updateReminders({ enabled: false })}>关闭</View></View></View>
+          <View className='setting-row'><Text>提前预警</Text><View className='chip-row'>{([24, 48, 72] as const).map((hours) => <View key={hours} className={`chip ${reminderSettings.dueSoonHours === hours ? 'chip--active' : ''}`} onClick={() => actions.updateReminders({ dueSoonHours: hours })}>{hours}h</View>)}</View></View>
+          <View className='setting-row'><Text>军报时刻</Text><View className='chip-row'>{[8, 12, 20].map((hour) => <View key={hour} className={`chip ${reminderSettings.dailyBriefHour === hour ? 'chip--active' : ''}`} onClick={() => actions.updateReminders({ dailyBriefHour: hour })}>{hour}:00</View>)}</View></View>
+        </View>
+      </View>
+
+      <NpcRosterSettings />
+
+      <RewardStore />
 
       <View className='paper-card truce-card'>
         <View className='truce-copy'>
@@ -118,6 +175,8 @@ export default function ChroniclePage() {
           ))}
         </View>
       </View>
+
+      <DataManagement />
 
       <View className='paper-card archive-card'>
         <View className='archive-copy'>

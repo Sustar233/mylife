@@ -2,10 +2,13 @@ import { useEffect, useMemo, useState } from 'react'
 import { Button, Image, Input, Text, Textarea, View } from '@tarojs/components'
 import Taro, { useRouter } from '@tarojs/taro'
 import { getSessionActiveSeconds } from '../../domain/engine'
-import type { SessionOutcome } from '../../domain/types'
+import type { ReviewRating, SessionOutcome } from '../../domain/types'
 import { formatDuration, isValidUrl } from '../../domain/utils'
 import { persistEvidenceImage } from '../../services/evidence-storage'
 import { useWorld } from '../../state/world-context'
+import marchBackground from './assets/march.jpg'
+import clashBackground from './assets/clash.jpg'
+import siegeBackground from './assets/siege.jpg'
 import './index.scss'
 
 const OUTCOMES: Array<{ value: SessionOutcome; title: string; description: string }> = [
@@ -13,6 +16,25 @@ const OUTCOMES: Array<{ value: SessionOutcome; title: string; description: strin
   { value: 'partial', title: '部分达成', description: '保留投入，继续围城或防守' },
   { value: 'failed', title: '未达成', description: '记录侦察经历，不宣告胜利' }
 ]
+
+const REVIEW_RATINGS: Array<{ value: ReviewRating; title: string; description: string }> = [
+  { value: 'again', title: '几乎忘记', description: '明日重新整队' },
+  { value: 'hard', title: '比较吃力', description: '缩短复习间隔' },
+  { value: 'good', title: '掌握正常', description: '按当前节奏推进' },
+  { value: 'easy', title: '非常轻松', description: '延长复习间隔' }
+]
+
+const BATTLE_PHASES = [
+  { key: 'march', image: marchBackground },
+  { key: 'clash', image: clashBackground },
+  { key: 'siege', image: siegeBackground }
+] as const
+
+const PHASE_LABELS = {
+  attack: ['整军出兵', '前线交战', '合围攻城'],
+  review: ['巡查城防', '据城固守', '巩固防线'],
+  recover: ['挥师收复', '争夺失地', '重整城防']
+} as const
 
 export default function BattlePage() {
   const router = useRouter()
@@ -24,6 +46,7 @@ export default function BattlePage() {
   const [link, setLink] = useState('')
   const [images, setImages] = useState<string[]>([])
   const [score, setScore] = useState('')
+  const [reviewRating, setReviewRating] = useState<ReviewRating>('good')
 
   const session = world.sessions.find((item) => item.id === sessionId)
   const campaign = campaigns.find((item) => item.id === session?.campaignId)
@@ -37,6 +60,9 @@ export default function BattlePage() {
   const elapsedSeconds = session ? getSessionActiveSeconds(session, tick) : 0
   const plannedSeconds = (session?.plannedMinutes ?? 25) * 60
   const timePercent = Math.min(100, Math.round((elapsedSeconds / Math.max(1, plannedSeconds)) * 100))
+  const remainingSeconds = Math.max(0, plannedSeconds - elapsedSeconds)
+  const phaseIndex = timePercent < 30 ? 0 : timePercent < 75 ? 1 : 2
+  const phase = BATTLE_PHASES[phaseIndex]
   const modeCopy = session?.mode === 'review'
     ? { eyebrow: 'DEFENCE OPERATION', title: '领地防守' }
     : session?.mode === 'recover'
@@ -71,15 +97,20 @@ export default function BattlePage() {
       return
     }
 
-    actions.settleExpedition(sessionId, {
+    const result = actions.settleExpedition(sessionId, {
       outcome,
       evidence: [
         ...(note.trim() ? [{ type: 'text' as const, content: note.trim() }] : []),
         ...(link.trim() ? [{ type: 'link' as const, content: link.trim() }] : []),
         ...images.map((path) => ({ type: 'image' as const, content: path }))
       ],
-      score: numericScore
+      score: numericScore,
+      reviewRating
     })
+    if (!result.ok) {
+      Taro.showToast({ title: result.message, icon: 'none' })
+      return
+    }
     Taro.showToast({ title: outcome === 'achieved' ? '战果已确认' : '战史已记录', icon: 'success' })
   }
 
@@ -109,6 +140,18 @@ export default function BattlePage() {
           <View className='result-status-row'><Text>稳定度</Text><Text>{node.effectiveOwner === 'self' ? node.effectiveStability : '—'}</Text></View>
         </View>
 
+        {session.reward && (
+          <View className='paper-card reward-result-card'>
+            <View className='reward-result-seal'>赏</View>
+            <View className='reward-result-copy'>
+              <View className='section-title'>本次军饷</View>
+              <View className='reward-result-total'><Text>＋{session.reward.coins} 铜钱</Text><Text>＋{session.reward.merit} 功勋</Text></View>
+              <View className='reward-result-detail'>{session.reward.breakdown.join(' · ')}</View>
+              {session.reward.randomBonus > 0 && <View className='reward-loot'>另获随机战利品军饷 ＋{session.reward.randomBonus}</View>}
+            </View>
+          </View>
+        )}
+
         <View className='paper-card result-card'>
           <View className='section-title'>成果证据</View>
           {sessionEvidence.map((item) => item.type === 'image'
@@ -133,24 +176,33 @@ export default function BattlePage() {
       </View>
 
       <View className='battlefield-card'>
-        <View className='battlefield-region'>{campaign.title} · {node.region}</View>
-        <View className='battlefield-title'>{node.title}</View>
-        <View className='battlefield-criteria'><Text>本次军令</Text>{node.victoryCriteria}</View>
+        <View className='battle-phase-art-layer'>
+          {BATTLE_PHASES.map((item) => (
+            <Image key={item.key} className={`battle-phase-art ${phase.key === item.key ? 'battle-phase-art--active' : ''}`} src={item.image} mode='aspectFill' />
+          ))}
+          <View className='battle-phase-veil' />
+        </View>
+        <View className='battlefield-content'>
+          <View className='battle-phase-label'><Text>{String(phaseIndex + 1).padStart(2, '0')}</Text>{PHASE_LABELS[session.mode][phaseIndex]}</View>
+          <View className='battlefield-region'>{campaign.title} · {node.region}</View>
+          <View className='battlefield-title'>{node.title}</View>
+          <View className='battlefield-criteria'><Text>本次军令</Text>{node.victoryCriteria}</View>
 
-        <View className='timer-wrap'>
-          <View className='timer-ring' style={{ background: `conic-gradient(#536b70 ${timePercent}%, rgba(72,78,72,.12) ${timePercent}%)` }}>
-            <View className='timer-inner'>
-              <Text className='timer-value'>{formatDuration(elapsedSeconds)}</Text>
-              <Text className='timer-plan'>计划 {session.plannedMinutes} 分钟</Text>
+          <View className='timer-wrap'>
+            <View className='timer-ring' style={{ background: `conic-gradient(#536b70 ${timePercent}%, rgba(72,78,72,.12) ${timePercent}%)` }}>
+              <View className='timer-inner'>
+                <Text className='timer-value'>{formatDuration(remainingSeconds)}</Text>
+                <Text className='timer-plan'>{remainingSeconds > 0 ? `已投入 ${formatDuration(elapsedSeconds)}` : '计划完成 · 可提交战果'}</Text>
+              </View>
             </View>
           </View>
-        </View>
 
-        <View className='timer-actions'>
-          {session.status === 'active'
-            ? <Button className='secondary-button timer-button' onClick={() => actions.pauseExpedition(sessionId)}>暂停整队</Button>
-            : <Button className='primary-button timer-button' onClick={() => actions.resumeExpedition(sessionId)}>继续行动</Button>}
-          <Button className='secondary-button timer-button timer-button--withdraw' onClick={abandon}>撤回</Button>
+          <View className='timer-actions'>
+            {session.status === 'active'
+              ? <Button className='secondary-button timer-button' onClick={() => actions.pauseExpedition(sessionId)}>暂停整队</Button>
+              : <Button className='primary-button timer-button' onClick={() => actions.resumeExpedition(sessionId)}>继续行动</Button>}
+            <Button className='secondary-button timer-button timer-button--withdraw' onClick={abandon}>撤回</Button>
+          </View>
         </View>
       </View>
 
@@ -159,9 +211,26 @@ export default function BattlePage() {
         <View className='section-title'>这次行动取得了什么？</View>
         <View className='outcome-grid'>
           {OUTCOMES.map((item) => (
-            <View key={item.value} className={`outcome-card ${outcome === item.value ? 'outcome-card--active' : ''}`} onClick={() => setOutcome(item.value)}>
+            <View
+              key={item.value}
+              className={`outcome-card ${outcome === item.value ? 'outcome-card--active' : ''}`}
+              onClick={() => {
+                setOutcome(item.value)
+                setReviewRating(item.value === 'failed' ? 'again' : item.value === 'partial' ? 'hard' : 'good')
+              }}
+            >
               <View className='outcome-title'>{item.title}</View>
               <View className='outcome-description'>{item.description}</View>
+            </View>
+          ))}
+        </View>
+
+        <Text className='field-label'>记忆反馈 · 决定下次防守时间</Text>
+        <View className='rating-grid'>
+          {REVIEW_RATINGS.map((item) => (
+            <View key={item.value} className={`rating-card ${reviewRating === item.value ? 'rating-card--active' : ''}`} onClick={() => setReviewRating(item.value)}>
+              <Text>{item.title}</Text>
+              <small>{item.description}</small>
             </View>
           ))}
         </View>

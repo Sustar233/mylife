@@ -9,8 +9,10 @@
     "build:h5": "taro build --type h5",
     "build:weapp": "taro build --type weapp",
     "typecheck": "tsc --noEmit",
-    "test": "tsx --test tests/engine.test.ts tests/territory-geometry.test.ts",
-    "test:watch": "tsx --test --watch tests/engine.test.ts tests/territory-geometry.test.ts"
+    "test": "tsx --test tests/engine.test.ts tests/territory-geometry.test.ts tests/planning.test.ts",
+    "test:watch": "tsx --test --watch tests/engine.test.ts tests/territory-geometry.test.ts tests/planning.test.ts",
+    "check:wxss": "node scripts/check-wxss.mjs",
+    "verify": "npm run typecheck && npm test && npm run build:h5 && npm run build:weapp && npm run check:wxss"
   },
   "browserslist": [
     "last 3 versions",

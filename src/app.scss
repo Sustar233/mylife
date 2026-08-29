@@ -26,6 +26,9 @@ page,
 
 view, text, input, textarea, button { box-sizing: border-box; }
 button::after { border: 0; }
+.app-error-boundary { width: 100%; max-width: 680px; min-height: 100vh; margin: 0 auto; padding: 90px 32px; }
+.app-error-boundary .primary-button { margin-top: 28px; }
+.app-error-hint { margin-top: 18px; color: #686960; font-size: 20px; line-height: 1.6; }
 
 .page-shell {
   width: 100%;
@@ -149,5 +152,5 @@ button::after { border: 0; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; }
+  .operation-pulse { animation-duration: .01ms !important; animation-iteration-count: 1 !important; }
 }
