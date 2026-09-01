@@ -1,4 +1,4 @@
-export type TemplateType = 'language' | 'exam' | 'stem'
+export type TemplateType = 'operating-system' | 'language' | 'exam' | 'stem'
 export type CampaignStatus = 'active' | 'archived' | 'victorious'
 export type NodeState = 'locked' | 'available' | 'sieging' | 'controlled' | 'contested' | 'lost'
 export type TerritoryOwner = 'self' | 'enemy' | 'rebel'

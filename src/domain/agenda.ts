@@ -72,7 +72,8 @@ export function getTodayAgenda(
     })
   })
 
-  if (!items.some((item) => item.kind !== 'active')) {
+  // 进行中的行动会占用唯一前线席位，此时不应再推荐一个无法真正启动的新目标。
+  if (items.length === 0) {
     const frontline = activeCampaigns
       .flatMap((campaign) => campaign.nodes.map((node) => ({ campaign, node })))
       .find(({ node }) => node.effectiveState === 'available' || node.effectiveState === 'sieging')

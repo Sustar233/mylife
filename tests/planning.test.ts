@@ -77,6 +77,29 @@ describe('今日作战与军情分析', () => {
     assert.equal(getReminderCount(world, campaigns, NOW), 1)
   })
 
+  it('已有进行中行动时不会再推荐无法启动的新前线', () => {
+    const world = createWorld()
+    const node = world.campaigns[0].nodes.find((item) => item.templateKey === 'foundation')!
+    const activeWorld: WorldState = {
+      ...world,
+      sessions: [{
+        id: 'active-session',
+        campaignId: node.campaignId,
+        nodeId: node.id,
+        mode: 'review',
+        plannedMinutes: 25,
+        scheduledAt: NOW,
+        status: 'active',
+        startedAt: NOW,
+        lastResumedAt: NOW,
+        accumulatedSeconds: 0,
+        evidenceIds: []
+      }]
+    }
+    const agenda = getTodayAgenda(activeWorld, deriveWorld(activeWorld, NOW), NOW)
+    assert.deepEqual(agenda.map((item) => item.id), ['session:active-session'])
+  })
+
   it('七日分析会汇总投入、达成率和薄弱领地', () => {
     const world = createWorld()
     const node = world.campaigns[0].nodes[0]
@@ -92,6 +115,29 @@ describe('今日作战与军情分析', () => {
     assert.equal(analytics.achievedRate, 50)
     assert.equal(analytics.currentStreak, 2)
     assert.ok(analytics.weakTerritories.some((item) => item.failures === 1))
+  })
+
+  it('连续作战天数不会被七日图表截断', () => {
+    const world = createWorld()
+    const node = world.campaigns[0].nodes[0]
+    const analyzed: WorldState = {
+      ...world,
+      sessions: Array.from({ length: 10 }, (_, index) => ({
+        id: `streak-${index}`,
+        campaignId: node.campaignId,
+        nodeId: node.id,
+        mode: 'review' as const,
+        plannedMinutes: 15,
+        scheduledAt: addDays(NOW, -index),
+        status: 'settled' as const,
+        accumulatedSeconds: 900,
+        endedAt: addDays(NOW, -index),
+        outcome: 'achieved' as const,
+        evidenceIds: []
+      }))
+    }
+    const analytics = getLearningAnalytics(analyzed, deriveWorld(analyzed, NOW), NOW)
+    assert.equal(analytics.currentStreak, 10)
   })
 })
 

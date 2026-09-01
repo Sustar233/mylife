@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import {
+  abandonSession,
   createCampaignFromTemplate,
   createInitialWorldState,
   checkpointActiveSessions,
@@ -58,6 +59,25 @@ function runSession(world: WorldState, nodeId: string, mode: 'attack' | 'review'
 }
 
 describe('战役生成与前置解锁', () => {
+  it('操作系统默认地图按八章生成连续战区', () => {
+    const template = getTemplate('operating-system')
+    assert.equal(template.nodes.filter((node) => node.kind !== 'capital').length, 8)
+    assert.deepEqual(
+      template.nodes.filter((node) => node.kind !== 'capital').map((node) => node.region),
+      ['第一章·概论', '第二章·运行机制', '第三章·进程线程', '第四章·调度', '第五章·存储', '第六章·文件', '第七章·设备', '第八章·同步死锁']
+    )
+
+    const world = createWorld('operating-system')
+    const campaign = deriveCampaign(world.campaigns[0], START)
+    assert.equal(campaign.regionCount, 8)
+    assert.equal(campaign.nodes.length, 17)
+    assert.deepEqual(
+      campaign.nodes.filter((node) => node.effectiveState === 'available').map((node) => node.templateKey),
+      ['unit-1']
+    )
+    assert.equal(campaign.nodes.find((node) => node.templateKey === 'unit-2')?.effectiveState, 'locked')
+  })
+
   it('初始地图只开放没有硬前置的城池', () => {
     const world = createWorld('stem')
     const campaign = deriveCampaign(world.campaigns[0], START)
@@ -125,6 +145,38 @@ describe('结算、首都和幂等', () => {
     assert.equal(twice.events.length, once.events.length)
     assert.equal(twice.rewards.coins, once.rewards.coins)
     assert.equal(twice.rewards.transactions.length, once.rewards.transactions.length)
+  })
+
+  it('行动模式必须与领地状态匹配', () => {
+    const world = createWorld('stem')
+    const available = world.campaigns[0].nodes.find((node) => node.templateKey === 'foundation')!
+    assert.throws(() => planSession(world, available.id, 25, 'recover', START), /只有失守领地/)
+
+    const controlledWorld = createWorld('stem', ['foundation'])
+    const controlled = controlledWorld.campaigns[0].nodes.find((node) => node.templateKey === 'foundation')!
+    const lostWorld: WorldState = {
+      ...controlledWorld,
+      campaigns: controlledWorld.campaigns.map((campaign) => ({
+        ...campaign,
+        nodes: campaign.nodes.map((node) => node.id === controlled.id
+          ? { ...node, review: { ...node.review, nextReviewAt: addDays(START, -40) } }
+          : node)
+      }))
+    }
+    assert.throws(() => planSession(lostWorld, controlled.id, 25, 'attack', START), /使用收复行动/)
+  })
+
+  it('已经撤回的行动不能重新结算', () => {
+    const world = createWorld('language')
+    const target = world.campaigns[0].nodes.find((node) => node.templateKey === 'word-camp')!
+    const planned = planSession(world, target.id, 25, 'attack', START, 'abandoned-session')
+    const started = startSession(planned.world, planned.session.id, START)
+    const abandoned = abandonSession(started, planned.session.id, addDays(START, 0.01))
+    assert.throws(() => settleSession(abandoned, planned.session.id, {
+      outcome: 'partial',
+      evidence: [{ type: 'text', content: PROOF }],
+      clientMutationId: 'abandoned-mutation'
+    }, addDays(START, 0.02)), /已经撤回/)
   })
 })
 

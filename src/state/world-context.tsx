@@ -45,6 +45,7 @@ import type {
   WorldState
 } from '../domain/types'
 import { makeId } from '../domain/utils'
+import { showUserToast } from '../services/taro-ui'
 import { normalizeWorldState, worldRepository } from '../services/world-repository'
 
 interface WorldActions {
@@ -124,7 +125,7 @@ export function WorldProvider({ children }: PropsWithChildren) {
     try {
       worldRepository.save(world)
     } catch {
-      Taro.showToast({ title: '本地空间不足，存档未能保存', icon: 'none' })
+      showUserToast('本地空间不足，存档未能保存')
     }
   }, [world, hydrated])
 
@@ -196,7 +197,7 @@ export function WorldProvider({ children }: PropsWithChildren) {
     try {
       commitWorld(startSession(worldRef.current, sessionId, timestamp))
     } catch (error) {
-      Taro.showToast({ title: error instanceof Error ? error.message : '暂时无法继续行动', icon: 'none' })
+      showUserToast(error instanceof Error ? error.message : '暂时无法继续行动')
     }
   }, [commitWorld])
 

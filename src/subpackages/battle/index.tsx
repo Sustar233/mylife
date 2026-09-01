@@ -5,6 +5,7 @@ import { getSessionActiveSeconds } from '../../domain/engine'
 import type { ReviewRating, SessionOutcome } from '../../domain/types'
 import { formatDuration, isValidUrl } from '../../domain/utils'
 import { persistEvidenceImage } from '../../services/evidence-storage'
+import { confirmAction, goBack, openTab, showUserToast } from '../../services/taro-ui'
 import { useWorld } from '../../state/world-context'
 import marchBackground from './assets/march.jpg'
 import clashBackground from './assets/clash.jpg'
@@ -84,16 +85,16 @@ export default function BattlePage() {
   const submit = () => {
     const hasEvidence = note.trim().length >= 20 || isValidUrl(link) || images.length > 0
     if (!hasEvidence) {
-      Taro.showToast({ title: '请写满 20 字，或添加链接/图片', icon: 'none' })
+      showUserToast('请写满 20 字，或添加链接/图片')
       return
     }
     if (link.trim() && !isValidUrl(link)) {
-      Taro.showToast({ title: '成果链接需以 http:// 或 https:// 开头', icon: 'none' })
+      showUserToast('成果链接需以 http:// 或 https:// 开头')
       return
     }
     const numericScore = score ? Number(score) : undefined
     if (node?.scoreTarget != null && outcome === 'achieved' && (numericScore == null || numericScore < node.scoreTarget)) {
-      Taro.showToast({ title: `首都线为 ${node.scoreTarget} 分`, icon: 'none' })
+      showUserToast(`首都线为 ${node.scoreTarget} 分`)
       return
     }
 
@@ -108,21 +109,33 @@ export default function BattlePage() {
       reviewRating
     })
     if (!result.ok) {
-      Taro.showToast({ title: result.message, icon: 'none' })
+      showUserToast(result.message)
       return
     }
-    Taro.showToast({ title: outcome === 'achieved' ? '战果已确认' : '战史已记录', icon: 'success' })
+    showUserToast(outcome === 'achieved' ? '战果已确认' : '战史已记录', 'success')
   }
 
   const abandon = async () => {
-    const result = await Taro.showModal({ title: '撤回部队？', content: '有效时间会保留在本次行动中，但不会提交成果证据。', confirmColor: '#50666a' })
-    if (!result.confirm) return
+    const confirmed = await confirmAction({ title: '撤回部队？', content: '有效时间会保留在本次行动中，但不会提交成果证据。', confirmColor: '#50666a' })
+    if (!confirmed) return
     actions.abandonExpedition(sessionId)
-    Taro.navigateBack()
+    goBack()
   }
 
   if (!hydrated || !session || !node || !campaign) {
     return <View className='page-shell battle-loading'>{hydrated ? '未找到这次出征记录。' : '正在联络前线…'}</View>
+  }
+
+  if (session.status === 'abandoned') {
+    return (
+      <View className='page-shell result-page'>
+        <View className='result-seal'>撤</View>
+        <View className='eyebrow'>WITHDRAWN · 行动撤回</View>
+        <View className='page-title'>部队已经撤回</View>
+        <View className='page-subtitle'>{node.title} · 已记录投入 {Math.ceil(session.accumulatedSeconds / 60)} 分钟，但未提交战果。</View>
+        <Button className='primary-button' onClick={() => openTab('/pages/command/index')}>返回司令部</Button>
+      </View>
+    )
   }
 
   if (session.status === 'settled') {
@@ -159,8 +172,8 @@ export default function BattlePage() {
             : <View key={item.id} className='result-evidence'>{item.content}</View>)}
         </View>
 
-        <Button className='primary-button' onClick={() => Taro.switchTab({ url: '/pages/map/index' })}>返回世界地图</Button>
-        <Button className='secondary-button result-secondary' onClick={() => Taro.switchTab({ url: '/pages/command/index' })}>查看今日军令</Button>
+        <Button className='primary-button' onClick={() => openTab('/pages/map/index')}>返回世界地图</Button>
+        <Button className='secondary-button result-secondary' onClick={() => openTab('/pages/command/index')}>查看今日军令</Button>
       </View>
     )
   }

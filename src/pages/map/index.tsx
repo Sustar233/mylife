@@ -1,10 +1,10 @@
 import { lazy, Suspense, useEffect, useMemo, useState } from 'react'
 import { Text, View } from '@tarojs/components'
-import Taro from '@tarojs/taro'
 import { NodeDossier } from '../../components/NodeDossier'
 import { NpcGuide } from '../../components/NpcGuide'
 import { TerritoryMap } from '../../components/TerritoryMap'
 import type { DerivedTerritoryNode, SessionMode } from '../../domain/types'
+import { openPage, showUserToast } from '../../services/taro-ui'
 import { useWorld } from '../../state/world-context'
 import './index.scss'
 
@@ -42,10 +42,10 @@ export default function MapPage() {
   const start = (node: DerivedTerritoryNode, minutes: number, mode: SessionMode) => {
     const result = actions.beginExpedition(node.id, minutes, mode)
     if (!result.ok) {
-      Taro.showToast({ title: result.message, icon: 'none' })
+      showUserToast(result.message)
       return
     }
-    Taro.navigateTo({ url: `/subpackages/battle/index?sessionId=${result.sessionId}` })
+    openPage(`/subpackages/battle/index?sessionId=${result.sessionId}`)
   }
 
   if (!hydrated) return <View className='page-shell loading-screen'>正在测绘疆域…</View>

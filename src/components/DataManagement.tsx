@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
 import { Button, Text, View } from '@tarojs/components'
-import Taro from '@tarojs/taro'
 import { chooseAndParseWorldBackup, exportWorldBackup, prepareImportedWorld } from '../services/backup-service'
 import {
   cleanupOrphanedEvidence,
@@ -10,6 +9,7 @@ import {
 } from '../services/evidence-storage'
 import { worldRepository, type WorldSnapshot, type WorldStorageStats } from '../services/world-repository'
 import { formatDateTime } from '../domain/utils'
+import { confirmAction, showUserToast } from '../services/taro-ui'
 import { useWorld } from '../state/world-context'
 import './DataManagement.scss'
 
@@ -35,9 +35,9 @@ export function DataManagement() {
     setBusy(true)
     try {
       await exportWorldBackup(world)
-      Taro.showToast({ title: '备份已经生成', icon: 'success' })
+      showUserToast('备份已经生成', 'success')
     } catch (error) {
-      Taro.showToast({ title: error instanceof Error ? error.message : '导出失败', icon: 'none' })
+      showUserToast(error instanceof Error ? error.message : '导出失败')
     } finally {
       setBusy(false)
     }
@@ -47,39 +47,46 @@ export function DataManagement() {
     setBusy(true)
     try {
       const imported = await chooseAndParseWorldBackup()
-      const result = await Taro.showModal({
+      const confirmed = await confirmAction({
         title: '恢复这份备份？',
         content: `将导入 ${imported.campaigns.length} 场战役、${imported.evidence.length} 份成果。当前存档会先生成快照。`,
         confirmText: '确认恢复',
         confirmColor: '#50666a'
       })
-      if (!result.confirm) return
+      if (!confirmed) return
       actions.replaceWorld(await prepareImportedWorld(imported))
-      Taro.showToast({ title: '备份恢复成功', icon: 'success' })
+      showUserToast('备份恢复成功', 'success')
     } catch (error) {
       const message = error instanceof Error ? error.message : '导入失败'
-      if (!/cancel/i.test(message)) Taro.showToast({ title: message, icon: 'none' })
+      if (!/cancel/i.test(message)) showUserToast(message)
     } finally {
       setBusy(false)
     }
   }
 
   const restore = async (snapshot: WorldSnapshot) => {
-    const result = await Taro.showModal({
+    const confirmed = await confirmAction({
       title: `恢复${snapshot.label}？`,
       content: `快照生成于 ${formatDateTime(snapshot.createdAt)}。当前数据会先另存一份快照。`,
       confirmText: '恢复快照',
       confirmColor: '#50666a'
     })
-    if (!result.confirm) return
+    if (!confirmed) return
     const restored = actions.restoreSnapshot(snapshot.id)
-    Taro.showToast({ title: restored.ok ? '快照已恢复' : restored.message, icon: restored.ok ? 'success' : 'none' })
+    showUserToast(restored.ok ? '快照已恢复' : restored.message, restored.ok ? 'success' : 'none')
   }
 
   const cleanup = async () => {
-    const count = await cleanupOrphanedEvidence(world)
-    await refresh()
-    Taro.showToast({ title: count ? `已清理 ${count} 个文件` : '没有无用文件', icon: count ? 'success' : 'none' })
+    setBusy(true)
+    try {
+      const count = await cleanupOrphanedEvidence(world)
+      await refresh()
+      showUserToast(count ? `已清理 ${count} 个文件` : '没有无用文件', count ? 'success' : 'none')
+    } catch {
+      showUserToast('图片清理失败，请稍后重试')
+    } finally {
+      setBusy(false)
+    }
   }
 
   return (
@@ -102,7 +109,7 @@ export function DataManagement() {
       <View className='data-actions'>
         <Button className='primary-button data-button' loading={busy} disabled={busy} onClick={exportBackup}>导出完整备份</Button>
         <Button className='secondary-button data-button' loading={busy} disabled={busy} onClick={importBackup}>从文件恢复</Button>
-        <Button className='secondary-button data-button' onClick={cleanup}>清理无用图片</Button>
+        <Button className='secondary-button data-button' loading={busy} disabled={busy} onClick={cleanup}>清理无用图片</Button>
       </View>
 
       <View className='snapshot-list'>

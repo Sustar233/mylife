@@ -47,6 +47,12 @@ function sessionMinutes(seconds: number): number {
   return Math.max(1, Math.ceil(seconds / 60))
 }
 
+function shiftDayKey(dayKey: string, days: number): string {
+  const date = new Date(`${dayKey}T12:00:00.000Z`)
+  date.setUTCDate(date.getUTCDate() + days)
+  return date.toISOString().slice(0, 10)
+}
+
 export function getLearningAnalytics(
   world: WorldState,
   campaigns: DerivedCampaign[],
@@ -79,12 +85,13 @@ export function getLearningAnalytics(
     }
   })
 
+  const studyDays = new Set(settled.map((session) => localDayKey(session.endedAt!, timezone)))
   let currentStreak = 0
-  let streakIndex = daily.length - 1
-  if (daily[streakIndex]?.minutes === 0) streakIndex -= 1
-  for (let index = streakIndex; index >= 0; index -= 1) {
-    if (daily[index].minutes <= 0) break
+  let streakDay = localDayKey(now, timezone)
+  if (!studyDays.has(streakDay)) streakDay = shiftDayKey(streakDay, -1)
+  while (studyDays.has(streakDay)) {
     currentStreak += 1
+    streakDay = shiftDayKey(streakDay, -1)
   }
 
   const activeNodes = campaigns.filter((campaign) => campaign.status !== 'archived').flatMap((campaign) => campaign.nodes.map((node) => ({ campaign, node })))

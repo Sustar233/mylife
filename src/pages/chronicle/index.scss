@@ -35,19 +35,8 @@
 .weak-row > view text { color: #353a35; font-size: 17px; font-weight: 900; }
 .weak-row small { margin-top: 2px; color: #787368; font-size: 13px; }
 .weak-row > text { flex: 0 0 auto; color: #765f4f; font-size: 15px; font-weight: 900; }
-.reminder-card { display: grid; grid-template-columns: minmax(0, 1fr) minmax(350px, .9fr); gap: 24px; }
-.reminder-copy .section-title { margin: 4px 0 6px; }
-.reminder-settings { min-width: 0; }
-.setting-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 0; border-top: 1px solid #aa9d82; }
-.setting-row:first-child { border-top: 0; }
-.setting-row > text { flex: 0 0 auto; color: #555c56; font-size: 16px; font-weight: 900; }
-.setting-row .chip { padding: 7px 10px; font-size: 14px; }
 
-.truce-card { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 23px; }
-.truce-card .section-title { margin-bottom: 5px; }
-.truce-copy { min-width: 0; }
-.truce-actions { align-items: center; flex: 0 0 auto; justify-content: flex-end; }
-
+.chronicle-mobile-tabs { display: none; }
 .chronicle-columns { display: grid; grid-template-columns: minmax(0, 1.12fr) minmax(340px, .88fr); align-items: start; gap: 18px; }
 .timeline-card, .evidence-card { min-width: 0; }
 .timeline { min-width: 0; }
@@ -59,6 +48,7 @@
 .timeline-title { color: #30342f; font-size: 23px; font-weight: 900; }
 .timeline-detail { margin-top: 4px; color: #696a61; font-size: 20px; line-height: 1.5; }
 .timeline-date { margin-top: 6px; color: #817b6e; font-family: Consolas, monospace; font-size: 16px; }
+.chronicle-load-more { padding: 12px; border: 1px solid #8a806a; color: #49676a; background: rgba(80, 102, 106, .08); font-size: 16px; font-weight: 900; text-align: center; }
 
 .evidence-entry { min-width: 0; padding: 15px 0; border-top: 1px solid #aa9b80; }
 .evidence-meta { color: #536b6c; font-family: "FangSong", serif; font-size: 17px; font-weight: 800; overflow-wrap: anywhere; }
@@ -67,12 +57,6 @@
 .evidence-image { width: 148px; height: 148px; max-width: 100%; margin-top: 10px; border: 1px solid #897a5e; }
 .empty-evidence { color: #777368; font-size: 21px; line-height: 1.6; }
 
-.archive-card { display: grid; grid-template-columns: minmax(0, 1fr) minmax(220px, auto); align-items: center; gap: 28px; }
-.archive-copy { min-width: 0; }
-.archive-card .section-title { margin-bottom: 4px; }
-.archive-current { display: inline-block; max-width: 100%; margin-top: 12px; padding: 5px 10px; border-left: 3px solid #50666a; background: rgba(80, 102, 106, .11); color: #4a6365; font-size: 18px; overflow-wrap: anywhere; }
-.archive-button { width: 100%; min-width: 220px; min-height: 68px; }
-
 @media (min-width: 900px) {
   .timeline-card { padding-right: 32px; }
   .evidence-card { max-height: 760PX; overflow-y: auto; scrollbar-color: #71807b #d1c5aa; scrollbar-width: thin; }
@@ -80,13 +64,16 @@
 
 @media (max-width: 899px) {
   .chronicle-columns { grid-template-columns: 1fr; }
-  .reminder-card { grid-template-columns: 1fr; }
+  .chronicle-mobile-tabs { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-top: 20px; }
+  .chronicle-mobile-tab { padding: 12px; border: 1px solid #998b70; border-bottom: 3px solid #998b70; color: #66675f; background: rgba(238, 228, 204, .72); text-align: center; }
+  .chronicle-mobile-tab text, .chronicle-mobile-tab small { display: block; }
+  .chronicle-mobile-tab text { font-size: 18px; font-weight: 900; }
+  .chronicle-mobile-tab small { margin-top: 3px; font-size: 12px; }
+  .chronicle-mobile-tab--active { border-color: #536b6b; color: #344f50; background: rgba(80, 102, 106, .13); box-shadow: inset 0 -3px #50666a; }
+  .chronicle-panel--mobile-hidden { display: none; }
 }
 
 @media (max-width: 700px) {
-  .truce-card, .archive-card { grid-template-columns: 1fr; align-items: stretch; }
-  .truce-actions { justify-content: flex-start; }
-  .archive-button { min-width: 0; }
   .chronicle-metrics text { font-size: 33px; }
   .chronicle-metrics > view { padding: 17px 8px; }
   .chronicle-metrics small { font-size: 16px; }
@@ -95,11 +82,32 @@
   .analytics-summary > view:nth-child(4) { border-top: 1px solid #aa9d82; }
 }
 
-@media (max-width: 430px) {
+@media (max-width: 600px) {
+  .chronicle-page { padding: 14PX 11PX 82PX; }
   .chronicle-header { align-items: flex-start; }
-  .storage-badge { width: 70px; height: 70px; }
-  .chronicle-metrics { grid-template-columns: 1fr; }
-  .chronicle-metrics > view { display: flex; align-items: baseline; justify-content: space-between; border-right: 0; border-bottom: 1px solid #a99b80; text-align: left; }
-  .chronicle-metrics > view:last-child { border-bottom: 0; }
-  .chronicle-metrics small { margin-top: 0; }
+  .storage-badge { width: 52PX; height: 52PX; box-shadow: inset 0 0 0 3PX #d2c5a8, 0 0 0 1PX #76684f; }
+  .storage-badge text { font-size: 18PX; }
+  .storage-badge small { font-size: 9PX; }
+  .chronicle-page .npc-guide { gap: 10PX; margin-top: 10PX; padding: 8PX 11PX 8PX 8PX; }
+  .chronicle-page .npc-portrait-frame { width: 48PX; height: 48PX; }
+  .chronicle-page .npc-identity { flex-direction: row; align-items: baseline; gap: 7PX; }
+  .chronicle-page .npc-identity text { font-size: 17PX; }
+  .chronicle-page .npc-identity small { font-size: 11PX; }
+  .chronicle-page .npc-line { display: -webkit-box; margin-top: 2PX; overflow: hidden; font-size: 13PX; line-height: 1.35; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+  .chronicle-metrics { grid-template-columns: repeat(3, minmax(0, 1fr)); margin-top: 10PX; }
+  .chronicle-metrics > view { padding: 10PX 4PX; border-right: 1PX solid #a99b80; border-bottom: 0; text-align: center; }
+  .chronicle-metrics text { font-size: 23PX; }
+  .chronicle-metrics small { margin-top: 3PX; font-size: 10PX; }
+  .learning-chart { gap: 5PX; height: 130PX; margin-top: 14PX; }
+  .chronicle-mobile-tabs { gap: 6PX; margin-top: 12PX; }
+  .chronicle-mobile-tab { padding: 10PX 8PX; }
+  .chronicle-mobile-tab text { font-size: 15PX; }
+  .chronicle-mobile-tab small { font-size: 10PX; }
+  .timeline-item { gap: 10PX; min-height: 92PX; }
+  .timeline-rail { flex-basis: 36PX; }
+  .timeline-icon { width: 34PX; height: 34PX; font-size: 16PX; }
+  .timeline-copy { padding-bottom: 14PX; }
+  .timeline-title { font-size: 17PX; }
+  .timeline-detail { font-size: 14PX; }
+  .timeline-date { font-size: 11PX; }
 }

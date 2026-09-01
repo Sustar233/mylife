@@ -1,6 +1,5 @@
 import { lazy, Suspense, useMemo, useState } from 'react'
 import { Button, Text, View } from '@tarojs/components'
-import Taro from '@tarojs/taro'
 import { NpcGuide } from '../../components/NpcGuide'
 import { getDailyTroopStatus } from '../../domain/engine'
 import { getTodayAgenda, type AgendaItem } from '../../domain/agenda'
@@ -8,6 +7,7 @@ import { getTroopAllocationAdvice } from '../../domain/troop-advice'
 import { actionForNode, STATE_LABELS } from '../../domain/presentation'
 import type { DerivedTerritoryNode } from '../../domain/types'
 import { formatCompactDate } from '../../domain/utils'
+import { openPage, openTab, showUserToast } from '../../services/taro-ui'
 import { useWorld } from '../../state/world-context'
 import './index.scss'
 
@@ -35,25 +35,25 @@ export default function CommandPage() {
     const action = actionForNode(node)
     const result = actions.beginExpedition(node.id, minutes, action.mode)
     if (!result.ok) {
-      Taro.showToast({ title: result.message, icon: 'none' })
+      showUserToast(result.message)
       return
     }
-    Taro.navigateTo({ url: `/subpackages/battle/index?sessionId=${result.sessionId}` })
+    openPage(`/subpackages/battle/index?sessionId=${result.sessionId}`)
   }
 
   const startAgendaItem = (item: AgendaItem) => {
     if (item.kind === 'active') {
       const sessionId = item.id.replace('session:', '')
-      Taro.navigateTo({ url: `/subpackages/battle/index?sessionId=${sessionId}` })
+      openPage(`/subpackages/battle/index?sessionId=${sessionId}`)
       return
     }
     actions.selectCampaign(item.campaignId)
     const result = actions.beginExpedition(item.nodeId, item.minutes, item.mode)
     if (!result.ok) {
-      Taro.showToast({ title: result.message, icon: 'none' })
+      showUserToast(result.message)
       return
     }
-    Taro.navigateTo({ url: `/subpackages/battle/index?sessionId=${result.sessionId}` })
+    openPage(`/subpackages/battle/index?sessionId=${result.sessionId}`)
   }
 
   if (!hydrated) {
@@ -94,7 +94,7 @@ export default function CommandPage() {
       />
 
       {activeSession && (
-        <View className='active-operation' onClick={() => Taro.navigateTo({ url: `/subpackages/battle/index?sessionId=${activeSession.id}` })}>
+        <View className='active-operation' onClick={() => openPage(`/subpackages/battle/index?sessionId=${activeSession.id}`)}>
           <View className='operation-pulse' />
           <View className='operation-copy'>
             <Text className='operation-label'>前线行动仍在继续</Text>
@@ -104,9 +104,9 @@ export default function CommandPage() {
         </View>
       )}
 
-      <View className='treasury-summary' onClick={() => Taro.switchTab({ url: '/pages/chronicle/index' })}>
+      <View className='treasury-summary' onClick={() => openTab('/pages/treasury/index')}>
         <View className='treasury-mark'>赏</View>
-        <View className='treasury-copy'><Text>当前国库</Text><small>完成行动领取军饷，在战史中兑换自定义犒赏</small></View>
+        <View className='treasury-copy'><Text>当前国库</Text><small>完成行动领取军饷，在国库中兑换自定义犒赏</small></View>
         <View className='treasury-balance'><Text>{world.rewards.coins}</Text><small>铜钱</small></View>
         <View className='treasury-balance'><Text>{world.rewards.merit}</Text><small>功勋</small></View>
         <Text className='row-arrow'>›</Text>

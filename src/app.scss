@@ -141,6 +141,8 @@ button::after { border: 0; }
 .weui-tabbar__item::before { display: block; margin-bottom: 3px; color: currentColor; font-family: "STKaiti", "KaiTi", serif; font-size: 22px; font-weight: 900; line-height: 1; content: "令"; }
 .weui-tabbar__item:nth-child(2)::before { content: "图"; }
 .weui-tabbar__item:nth-child(3)::before { content: "史"; }
+.weui-tabbar__item:nth-child(4)::before { content: "赏"; }
+.weui-tabbar__item:nth-child(5)::before { content: "务"; }
 .weui-tabbar__label { margin-top: 0 !important; font-family: "FangSong", "STFangsong", serif; }
 
 @media (min-width: 900px) {

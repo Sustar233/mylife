@@ -4,6 +4,7 @@ import Taro from '@tarojs/taro'
 import { getNpcCharacterIds, normalizeNpcAssignments, NPC_DUTIES } from '../domain/npcs'
 import type { NpcCharacterId, NpcCharacterInput, NpcDuty } from '../domain/types'
 import { persistNpcPortrait } from '../services/evidence-storage'
+import { confirmAction, showUserToast } from '../services/taro-ui'
 import { useWorld } from '../state/world-context'
 import { getNpcCharacter, getNpcCharacters, NPC_DUTY_META } from './npc-roster'
 import './NpcRosterSettings.scss'
@@ -24,7 +25,7 @@ export function NpcRosterSettings() {
 
   const assign = (duty: NpcDuty, characterId: NpcCharacterId) => {
     const result = actions.assignNpc(duty, characterId)
-    Taro.showToast({ title: result.ok ? '幕僚任命已更新' : result.message, icon: result.ok ? 'success' : 'none' })
+    showUserToast(result.ok ? '幕僚任命已更新' : result.message, result.ok ? 'success' : 'none')
   }
 
   const choosePortrait = async () => {
@@ -39,7 +40,7 @@ export function NpcRosterSettings() {
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
       if (!message.toLowerCase().includes('cancel')) {
-        Taro.showToast({ title: '头像选择失败，请重试', icon: 'none' })
+        showUserToast('头像选择失败，请重试')
       }
     } finally {
       setChoosingImage(false)
@@ -48,17 +49,17 @@ export function NpcRosterSettings() {
 
   const saveCharacter = () => {
     const result = actions.createNpc(draft)
-    Taro.showToast({ title: result.ok ? '新角色已加入名册' : result.message, icon: result.ok ? 'success' : 'none' })
+    showUserToast(result.ok ? '新角色已加入名册' : result.message, result.ok ? 'success' : 'none')
     if (!result.ok) return
     setDraft(EMPTY_DRAFT)
     setCreating(false)
   }
 
   const removeCharacter = async (characterId: NpcCharacterId, name: string) => {
-    const answer = await Taro.showModal({ title: '移出名册', content: `确定移除自定义角色「${name}」吗？` })
-    if (!answer.confirm) return
+    const confirmed = await confirmAction({ title: '移出名册', content: `确定移除自定义角色「${name}」吗？` })
+    if (!confirmed) return
     const result = actions.deleteNpc(characterId)
-    Taro.showToast({ title: result.ok ? '角色已移出名册' : result.message, icon: result.ok ? 'success' : 'none' })
+    showUserToast(result.ok ? '角色已移出名册' : result.message, result.ok ? 'success' : 'none')
   }
 
   const cancelCreate = () => {

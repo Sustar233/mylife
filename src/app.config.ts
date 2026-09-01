@@ -2,7 +2,9 @@ export default defineAppConfig({
   pages: [
     'pages/command/index',
     'pages/map/index',
-    'pages/chronicle/index'
+    'pages/chronicle/index',
+    'pages/treasury/index',
+    'pages/affairs/index'
   ],
   subpackages: [
     {
@@ -24,8 +26,10 @@ export default defineAppConfig({
     borderStyle: 'black',
     list: [
       { pagePath: 'pages/command/index', text: '司令部' },
-      { pagePath: 'pages/map/index', text: '世界地图' },
-      { pagePath: 'pages/chronicle/index', text: '战史' }
+      { pagePath: 'pages/map/index', text: '地图' },
+      { pagePath: 'pages/chronicle/index', text: '战史' },
+      { pagePath: 'pages/treasury/index', text: '国库' },
+      { pagePath: 'pages/affairs/index', text: '内务' }
     ]
   }
 })

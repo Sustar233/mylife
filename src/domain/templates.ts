@@ -30,6 +30,37 @@ export interface CampaignTemplateDefinition {
   edges: TemplateEdgeDefinition[]
 }
 
+const operatingSystem: CampaignTemplateDefinition = {
+  type: 'operating-system',
+  name: '操作系统八章',
+  icon: '机',
+  tagline: '按教材单元顺序推进，默认实测地图',
+  defaultTitle: '操作系统八章战图',
+  defaultGoal: '按照教材单元顺序完成八章学习、复习与阶段验收',
+  defaultCapitalCriteria: '完成八章学习与一次全书复盘，提交可验证的总结或模拟记录',
+  nodes: [
+    { key: 'unit-1', region: '第一章·概论', title: '第一章研读营', description: '完成第一章的整体通读并记录进度。', kind: 'city', estimatedMinutes: 120, victoryCriteria: '完成第一章一次完整学习并提交章节进度记录', position: { x: 10, y: 20 } },
+    { key: 'unit-2', region: '第二章·运行机制', title: '第二章研读营', description: '完成第二章的整体通读并记录进度。', kind: 'city', estimatedMinutes: 120, victoryCriteria: '完成第二章一次完整学习并提交章节进度记录', position: { x: 26, y: 12 } },
+    { key: 'unit-3', region: '第三章·进程线程', title: '第三章研读营', description: '完成第三章的整体通读并记录进度。', kind: 'fortress', estimatedMinutes: 150, victoryCriteria: '完成第三章一次完整学习并提交章节进度记录', position: { x: 42, y: 25 } },
+    { key: 'unit-4', region: '第四章·调度', title: '第四章研读营', description: '完成第四章的整体通读并记录进度。', kind: 'city', estimatedMinutes: 120, victoryCriteria: '完成第四章一次完整学习并提交章节进度记录', position: { x: 58, y: 11 } },
+    { key: 'unit-5', region: '第五章·存储', title: '第五章研读营', description: '完成第五章的整体通读并记录进度。', kind: 'fortress', estimatedMinutes: 150, victoryCriteria: '完成第五章一次完整学习并提交章节进度记录', position: { x: 75, y: 22 } },
+    { key: 'unit-6', region: '第六章·文件', title: '第六章研读营', description: '完成第六章的整体通读并记录进度。', kind: 'city', estimatedMinutes: 120, victoryCriteria: '完成第六章一次完整学习并提交章节进度记录', position: { x: 88, y: 42 } },
+    { key: 'unit-7', region: '第七章·设备', title: '第七章研读营', description: '完成第七章的整体通读并记录进度。', kind: 'fortress', estimatedMinutes: 120, victoryCriteria: '完成第七章一次完整学习并提交章节进度记录', position: { x: 76, y: 62 } },
+    { key: 'unit-8', region: '第八章·同步死锁', title: '第八章研读营', description: '完成第八章的整体通读并记录进度。', kind: 'fortress', estimatedMinutes: 150, victoryCriteria: '完成第八章一次完整学习并提交章节进度记录', position: { x: 58, y: 78 } },
+    { key: 'capital', region: '全书总复习', title: '操作系统总复习王都', description: '完成八个单元后的全书综合验收。', kind: 'capital', estimatedMinutes: 240, victoryCriteria: '完成八章学习与一次全书复盘，提交可验证的总结或模拟记录', position: { x: 34, y: 88 } }
+  ],
+  edges: [
+    { from: 'unit-1', to: 'unit-2' },
+    { from: 'unit-2', to: 'unit-3' },
+    { from: 'unit-3', to: 'unit-4' },
+    { from: 'unit-4', to: 'unit-5' },
+    { from: 'unit-5', to: 'unit-6' },
+    { from: 'unit-6', to: 'unit-7' },
+    { from: 'unit-7', to: 'unit-8' },
+    { from: 'unit-8', to: 'capital' }
+  ]
+}
+
 const language: CampaignTemplateDefinition = {
   type: 'language',
   name: '语言远征',
@@ -135,7 +166,7 @@ const stem: CampaignTemplateDefinition = {
   ]
 }
 
-export const CAMPAIGN_TEMPLATES: CampaignTemplateDefinition[] = [language, exam, stem]
+export const CAMPAIGN_TEMPLATES: CampaignTemplateDefinition[] = [operatingSystem, language, exam, stem]
 
 export function getTemplate(type: TemplateType): CampaignTemplateDefinition {
   const template = CAMPAIGN_TEMPLATES.find((item) => item.type === type)

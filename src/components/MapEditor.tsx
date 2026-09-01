@@ -15,6 +15,7 @@ import {
   updateCampaignNode
 } from '../domain/map-editor-engine'
 import { isStructuralDependency, validateCampaignMap } from '../domain/map-planning'
+import { confirmAction, showUserToast } from '../services/taro-ui'
 import { useWorld } from '../state/world-context'
 import './MapEditor.scss'
 
@@ -54,7 +55,7 @@ export function MapEditor({ campaign, selectedRegion, selectedNode, onClose }: M
   }, [selectedNode])
 
   const notify = (result: { ok: true } | { ok: false; message: string }, success: string) => {
-    Taro.showToast({ title: result.ok ? success : result.message, icon: result.ok ? 'success' : 'none' })
+    showUserToast(result.ok ? success : result.message, result.ok ? 'success' : 'none')
     return result.ok
   }
 
@@ -97,12 +98,12 @@ export function MapEditor({ campaign, selectedRegion, selectedNode, onClose }: M
 
   const removeNode = async () => {
     if (!selectedNode) return
-    const confirmation = await Taro.showModal({
+    const confirmed = await confirmAction({
       title: '撤销这个据点？',
       content: '仅尚未学习的自定义据点可以撤销，区域和历史记录不会受影响。',
       confirmColor: '#76534a'
     })
-    if (!confirmation.confirm) return
+    if (!confirmed) return
     notify(actions.applyMapOperation((current, timestamp) => removeCustomOutpost(current, campaign.id, selectedNode.id, timestamp)), '据点已撤销')
   }
 

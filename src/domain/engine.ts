@@ -311,6 +311,8 @@ export function planSession(
   }
   const derivedNode = deriveCampaign(campaign, scheduledAt).nodes.find((node) => node.id === nodeId)!
   if (derivedNode.effectiveState === 'locked') throw new Error('补给道路尚未打通，不能进攻此城。')
+  if (derivedNode.effectiveState === 'lost' && mode !== 'recover') throw new Error('该领地已经失守，请使用收复行动。')
+  if (mode === 'recover' && derivedNode.effectiveState !== 'lost') throw new Error('只有失守领地可以发动收复行动。')
   if (mode === 'attack' && derivedNode.effectiveOwner === 'self') throw new Error('己方领地应使用防守复习。')
   if (mode === 'review' && derivedNode.effectiveOwner !== 'self') throw new Error('该领地已经失守，请使用收复行动。')
 
@@ -400,6 +402,8 @@ export function pauseSession(world: WorldState, sessionId: string, now = new Dat
 }
 
 export function abandonSession(world: WorldState, sessionId: string, now = new Date().toISOString()): WorldState {
+  const target = world.sessions.find((session) => session.id === sessionId)
+  if (!target || target.status === 'settled' || target.status === 'abandoned') return world
   return {
     ...world,
     sessions: world.sessions.map((session) => session.id === sessionId
@@ -491,6 +495,8 @@ export function settleSession(
   const target = world.sessions.find((session) => session.id === sessionId)
   if (!target) throw new Error('未找到出征任务。')
   if (target.status === 'settled') return world
+  if (target.status === 'abandoned') throw new Error('这次行动已经撤回，不能再提交战果。')
+  if (target.status === 'planned') throw new Error('行动尚未开始，不能提交战果。')
   if (world.sessions.some((session) => session.clientMutationId === input.clientMutationId)) return world
 
   const drafts = validateEvidence(input.evidence)

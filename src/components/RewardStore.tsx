@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Button, Input, Text, Textarea, View } from '@tarojs/components'
-import Taro from '@tarojs/taro'
 import { formatDateTime } from '../domain/utils'
+import { confirmAction, showUserToast } from '../services/taro-ui'
 import { useWorld } from '../state/world-context'
 import './RewardStore.scss'
 
@@ -15,41 +15,23 @@ export function RewardStore() {
   const activeItems = rewards.items.filter((item) => !item.archivedAt)
   const pendingRedemptions = rewards.redemptions.filter((item) => !item.fulfilledAt)
 
-  const showToast = (message: string, icon: 'success' | 'none' = 'none') => {
-    void Taro.showToast({ title: message, icon }).catch(() => undefined)
-  }
-
-  const showConfirmation = async (options: {
-    title: string
-    content: string
-    confirmText: string
-    confirmColor: string
-  }) => {
-    try {
-      return (await Taro.showModal(options)).confirm
-    } catch {
-      showToast('确认窗口打开失败')
-      return false
-    }
-  }
-
   const createItem = () => {
     const result = actions.createReward({ title, description, cost: Number(cost) })
     if (!result.ok) {
-      showToast(result.message)
+      showUserToast(result.message)
       return
     }
     setTitle('')
     setDescription('')
     setCost('80')
     setShowForm(false)
-    showToast('新犒赏已上架', 'success')
+    showUserToast('新犒赏已上架', 'success')
   }
 
   const redeem = async (itemId: string, itemTitle: string, itemCost: number) => {
     if (rewards.coins < itemCost) return
 
-    const confirmed = await showConfirmation({
+    const confirmed = await confirmAction({
       title: `兑换「${itemTitle}」？`,
       content: `将从国库支付 ${itemCost} 枚铜钱，并生成一张待兑现犒赏令。`,
       confirmText: '确认兑换',
@@ -57,11 +39,11 @@ export function RewardStore() {
     })
     if (!confirmed) return
     const result = actions.redeemReward(itemId)
-    showToast(result.ok ? '犒赏令已签发' : result.message, result.ok ? 'success' : 'none')
+    showUserToast(result.ok ? '犒赏令已签发' : result.message, result.ok ? 'success' : 'none')
   }
 
   const archive = async (itemId: string, itemTitle: string) => {
-    const confirmed = await showConfirmation({
+    const confirmed = await confirmAction({
       title: `下架「${itemTitle}」？`,
       content: '已经兑换的犒赏令和历史流水不会被删除。',
       confirmText: '确认下架',
@@ -69,11 +51,11 @@ export function RewardStore() {
     })
     if (!confirmed) return
     const result = actions.archiveReward(itemId)
-    if (!result.ok) showToast(result.message)
+    if (!result.ok) showUserToast(result.message)
   }
 
   const fulfill = async (redemptionId: string, itemTitle: string) => {
-    const confirmed = await showConfirmation({
+    const confirmed = await confirmAction({
       title: `已经兑现「${itemTitle}」？`,
       content: '确认后会将这张犒赏令收入历史记录。',
       confirmText: '已经享用',
@@ -81,7 +63,7 @@ export function RewardStore() {
     })
     if (!confirmed) return
     const result = actions.fulfillReward(redemptionId)
-    showToast(result.ok ? '犒赏已兑现' : result.message, result.ok ? 'success' : 'none')
+    showUserToast(result.ok ? '犒赏已兑现' : result.message, result.ok ? 'success' : 'none')
   }
 
   return (

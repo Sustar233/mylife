@@ -1,8 +1,9 @@
 .creator-head { display: flex; align-items: flex-start; justify-content: space-between; }
 .creator-step { margin-top: 4px; padding: 7px 13px; border: 1px solid #8b8068; color: #4c6466; background: rgba(80, 102, 106, .1); font-family: Consolas, monospace; font-size: 19px; }
-.template-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 11px; }
-.template-card { min-height: 178px; padding: 19px 13px; border: 1px solid #9a8969; border-top: 3px solid #8b7a5d; background: rgba(244, 236, 216, .62); text-align: center; }
+.template-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 11px; }
+.template-card { position: relative; min-height: 178px; padding: 19px 13px; border: 1px solid #9a8969; border-top: 3px solid #8b7a5d; background: rgba(244, 236, 216, .62); text-align: center; }
 .template-card--active { border-color: #52696b; border-top-color: #52696b; background: rgba(80, 102, 106, .13); box-shadow: inset 0 0 0 2px rgba(255, 251, 235, .22); }
+.template-default-badge { position: absolute; top: 8px; right: 8px; padding: 2px 6px; color: #f1e8d2; background: #586866; font-size: 12px; font-weight: 800; letter-spacing: 1px; }
 .template-seal { display: flex; align-items: center; justify-content: center; width: 50px; height: 50px; margin: 0 auto 10px; border: 1px solid #6f765f; color: #f1e8d2; background: #586866; font-family: "STKaiti", "KaiTi", serif; font-size: 27px; font-weight: 900; }
 .template-name { color: #30332e; font-size: 24px; font-weight: 900; }
 .template-tagline { margin-top: 7px; color: #747066; font-size: 19px; line-height: 1.4; }
@@ -10,6 +11,10 @@
 .import-hint { margin: -2px 0 14px; color: #716e64; font-size: 21px; line-height: 1.55; }
 .import-list { max-height: 230px; overflow-y: auto; }
 .create-button { margin-top: 29px; }
+
+@media (max-width: 800px) {
+  .template-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
 
 @media (max-width: 430px) {
   .template-grid { grid-template-columns: 1fr; }

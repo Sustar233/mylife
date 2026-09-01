@@ -1,8 +1,8 @@
 import { useMemo, useState } from 'react'
 import { Button, Input, Text, View } from '@tarojs/components'
-import Taro from '@tarojs/taro'
 import { CAMPAIGN_TEMPLATES, getTemplate } from '../domain/templates'
 import type { TemplateType } from '../domain/types'
+import { showUserToast } from '../services/taro-ui'
 import { useWorld } from '../state/world-context'
 import './CampaignCreator.scss'
 
@@ -12,7 +12,7 @@ interface CampaignCreatorProps {
 
 export function CampaignCreator({ onCreated }: CampaignCreatorProps) {
   const { actions } = useWorld()
-  const [templateType, setTemplateType] = useState<TemplateType>('stem')
+  const [templateType, setTemplateType] = useState<TemplateType>('operating-system')
   const template = useMemo(() => getTemplate(templateType), [templateType])
   const [title, setTitle] = useState(template.defaultTitle)
   const [goal, setGoal] = useState(template.defaultGoal)
@@ -39,7 +39,7 @@ export function CampaignCreator({ onCreated }: CampaignCreatorProps) {
 
   const create = () => {
     if (!title.trim() || !goal.trim() || !capitalCriteria.trim()) {
-      Taro.showToast({ title: '请补全战役目标', icon: 'none' })
+      showUserToast('请补全战役目标')
       return
     }
     const result = actions.createCampaign({
@@ -52,10 +52,10 @@ export function CampaignCreator({ onCreated }: CampaignCreatorProps) {
       importedTemplateKeys: importedKeys
     })
     if (!result.ok) {
-      Taro.showToast({ title: result.message, icon: 'none' })
+      showUserToast(result.message)
       return
     }
-    Taro.showToast({ title: '战役地图已生成', icon: 'success' })
+    showUserToast('战役地图已生成', 'success')
     onCreated?.()
   }
 
@@ -77,6 +77,7 @@ export function CampaignCreator({ onCreated }: CampaignCreatorProps) {
             className={`template-card ${templateType === item.type ? 'template-card--active' : ''}`}
             onClick={() => selectTemplate(item.type)}
           >
+            {item.type === 'operating-system' && <Text className='template-default-badge'>默认</Text>}
             <Text className='template-seal'>{item.icon}</Text>
             <View className='template-name'>{item.name}</View>
             <View className='template-tagline'>{item.tagline}</View>
