@@ -41,7 +41,7 @@ export default function ChroniclePage() {
           <View className='page-title'>疆域纪年</View>
           <View className='page-subtitle'>所有投入与成果都保留，即使领地暂时失守。</View>
         </View>
-        <View className='storage-badge'><Text>安全</Text><small>存档 v{world.version}</small></View>
+        <View className='storage-badge'><Text>本地</Text><small>存档 v{world.version}</small></View>
       </View>
 
       <NpcGuide
@@ -102,6 +102,7 @@ export default function ChroniclePage() {
       <View className='chronicle-columns'>
         <View className={`paper-card timeline-card ${archiveView !== 'timeline' ? 'chronicle-panel--mobile-hidden' : ''}`}>
           <View className='section-title'>领土大事记</View>
+          {visibleEvents.length === 0 && <View className='empty-evidence'>这里将记录你的学习历程。先到司令部建立战役，开始第一场行动。</View>}
           <View className='timeline'>
             {visibleEvents.map((entry, index) => (
               <View key={entry.id} className='timeline-item'>
@@ -129,7 +130,7 @@ export default function ChroniclePage() {
             <View key={item.id} className='evidence-entry'>
               <View className='evidence-meta'>{node?.title ?? '未知战场'} · {formatDateTime(item.createdAt)}</View>
               {item.type === 'image'
-                ? <Image className='evidence-image' src={item.content} mode='aspectFill' />
+                ? <Image className='evidence-image' src={item.content} mode='aspectFill' lazyLoad />
                 : <View className={`evidence-content evidence-content--${item.type}`} onClick={() => item.type === 'link' && void copyText(item.content)}>{item.content}</View>}
             </View>
           ))}

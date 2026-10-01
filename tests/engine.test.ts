@@ -399,7 +399,32 @@ describe('可中断计时', () => {
 
     const reopened = pauseInterruptedSessions(checkpointed, addDays(START, 1))
     assert.equal(reopened.sessions[0].status, 'paused')
-    assert.equal(reopened.sessions[0].accumulatedSeconds, 120)
+    assert.equal(reopened.sessions[0].accumulatedSeconds, 30)
     assert.equal(reopened.sessions[0].lastResumedAt, undefined)
+    assert.equal(pauseInterruptedSessions(reopened, addDays(START, 2)), reopened)
+  })
+
+  it('恢复旧快照不虚增时间，继续行动只计算恢复后的时间', () => {
+    const world = createWorld('language')
+    const planned = planSession(world, world.campaigns[0].nodes[0].id, 25, 'attack', START, 'restore-session')
+    const active = startSession(planned.world, planned.session.id, START)
+    const checkpointed = checkpointActiveSessions(active, new Date(Date.parse(START) + 30_000).toISOString())
+    const restoredAt = addDays(START, 30)
+    const restored = pauseInterruptedSessions(checkpointed, restoredAt)
+    const resumed = startSession(restored, planned.session.id, restoredAt)
+    const paused = pauseSession(resumed, planned.session.id, new Date(Date.parse(restoredAt) + 60_000).toISOString())
+    assert.equal(paused.sessions[0].accumulatedSeconds, 90)
+  })
+
+  it('NaN、无穷大和负分数不能进入结算记录', () => {
+    const world = createWorld('language')
+    const planned = planSession(world, world.campaigns[0].nodes[0].id, 25, 'attack', START, 'invalid-score')
+    const active = startSession(planned.world, planned.session.id, START)
+    for (const score of [NaN, Infinity, -Infinity, -1]) {
+      assert.throws(() => settleSession(active, planned.session.id, {
+        outcome: 'achieved', score, clientMutationId: 'invalid-score', evidence: [{ type: 'text', content: PROOF }]
+      }, START), /有效的非负数字/)
+    }
+    assert.equal(active.sessions[0].status, 'active')
   })
 })

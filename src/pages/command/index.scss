@@ -77,6 +77,8 @@
 .order-title { margin-top: 5px; color: #2e332f; font-family: "STKaiti", "KaiTi", serif; font-size: 37px; font-weight: 900; }
 .order-criteria { margin-top: 7px; color: #65665e; font-size: 22px; line-height: 1.55; }
 .order-button { margin-top: 23px; }
+.order-hint { margin-top: 12px; color: #62665d; font-size: 20px; line-height: 1.6; text-align: center; }
+.operation-pulse--paused { animation: none; background: #8a7752; }
 
 .command-columns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 15px; }
 .list-head { display: flex; align-items: center; justify-content: space-between; }
@@ -139,6 +141,7 @@
   .metric-card::after { right: 6PX; bottom: 5PX; font-size: 10PX; }
   .metric-label { overflow: hidden; font-size: 12PX; letter-spacing: 0; text-overflow: ellipsis; white-space: nowrap; }
   .metric-value { margin: 5PX 0 3PX; font-size: 24PX; }
+  .metric-card--time .metric-value { display: flex; flex-wrap: wrap; align-items: baseline; gap: 3PX; }
   .metric-value text { font-size: 11PX; }
   .metric-foot { display: none; }
   .metric-card .progress-track { height: 4PX; }
@@ -151,6 +154,10 @@
   .order-title { margin-top: 2PX; font-size: 24PX; }
   .order-criteria { margin-top: 4PX; font-size: 13PX; line-height: 1.4; }
   .order-button { min-height: 44PX; margin-top: 12PX; font-size: 15PX; }
+  .order-hint { margin-top: 8PX; font-size: 12PX; }
+  .agenda-title { white-space: normal; line-height: 1.5; }
+  .agenda-title text { display: block; margin-left: 0; }
+  .agenda-row { padding: 8PX 0; }
 
   .mobile-command-more { display: flex; align-items: center; justify-content: space-between; gap: 10PX; margin-top: 10PX; padding: 11PX 12PX; border: 1PX solid #8e8168; border-left: 4PX solid #687977; background: rgba(235, 225, 201, .82); box-shadow: 0 4PX 12PX rgba(55, 48, 37, .1); }
   .mobile-command-more-copy { min-width: 0; }
@@ -169,3 +176,4 @@
   .hero-title { font-size: 47px; }
   .treasury-copy small { display: none; }
 }
+.agenda-more { margin-top: 14px; min-height: 62px; font-size: 22px; }

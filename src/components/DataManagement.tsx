@@ -25,8 +25,9 @@ export function DataManagement() {
 
   const refresh = async () => {
     setStorage(worldRepository.getStats())
-    setSnapshots(worldRepository.listSnapshots())
-    setEvidence(await getEvidenceStorageStats(world))
+    const currentSnapshots = worldRepository.listSnapshots()
+    setSnapshots(currentSnapshots)
+    setEvidence(await getEvidenceStorageStats(world, currentSnapshots.map((snapshot) => snapshot.world)))
   }
 
   useEffect(() => { refresh().catch(() => undefined) }, [world])
@@ -54,7 +55,13 @@ export function DataManagement() {
         confirmColor: '#50666a'
       })
       if (!confirmed) return
-      actions.replaceWorld(await prepareImportedWorld(imported))
+      const prepared = await prepareImportedWorld(imported)
+      try {
+        actions.replaceWorld(prepared.world)
+      } catch (error) {
+        await prepared.rollback()
+        throw error
+      }
       showUserToast('备份恢复成功', 'success')
     } catch (error) {
       const message = error instanceof Error ? error.message : '导入失败'
@@ -79,7 +86,7 @@ export function DataManagement() {
   const cleanup = async () => {
     setBusy(true)
     try {
-      const count = await cleanupOrphanedEvidence(world)
+      const count = await cleanupOrphanedEvidence(world, worldRepository.listSnapshots().map((snapshot) => snapshot.world)) + worldRepository.cleanupImages()
       await refresh()
       showUserToast(count ? `已清理 ${count} 个文件` : '没有无用文件', count ? 'success' : 'none')
     } catch {

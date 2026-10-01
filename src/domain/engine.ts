@@ -30,7 +30,9 @@ import type {
   TerritoryNode,
   WorldState
 } from './types'
-import { DAY_MS, HOUR_MS, addDays, clamp, isValidUrl, makeId } from './utils'
+import { DAY_MS, HOUR_MS, addDays, clamp, isValidUrl, localDayKey, makeId } from './utils'
+import { checkpointSession, getSessionActiveSeconds, sessionSecondsByDay } from './session-time'
+export { getSessionActiveSeconds } from './session-time'
 
 export const REVIEW_INTERVAL_DAYS = [1, 3, 7, 14, 30] as const
 export const REVIEW_GRACE_HOURS = 48
@@ -259,18 +261,12 @@ export function replaceCampaignNode(world: WorldState, campaignId: string, repla
   }
 }
 
-export function getSessionActiveSeconds(session: StudySession, now = new Date().toISOString()): number {
-  if (session.status !== 'active' || !session.lastResumedAt) return session.accumulatedSeconds
-  const live = Math.max(0, Math.floor((new Date(now).getTime() - new Date(session.lastResumedAt).getTime()) / 1000))
-  return session.accumulatedSeconds + live
-}
-
 export function checkpointActiveSessions(world: WorldState, now = new Date().toISOString()): WorldState {
   if (!world.sessions.some((session) => session.status === 'active' && session.lastResumedAt)) return world
   return {
     ...world,
     sessions: world.sessions.map((session) => session.status === 'active' && session.lastResumedAt
-      ? { ...session, accumulatedSeconds: getSessionActiveSeconds(session, now), lastResumedAt: now }
+      ? { ...checkpointSession(session, world.profile.timezone, now), lastResumedAt: now }
       : session)
   }
 }
@@ -281,13 +277,12 @@ export function pauseInterruptedSessions(world: WorldState, now = new Date().toI
     ...world,
     sessions: world.sessions.map((session) => {
       if (session.status !== 'active') return session
-      const sinceCheckpoint = session.lastResumedAt
-        ? Math.max(0, Math.floor((new Date(now).getTime() - new Date(session.lastResumedAt).getTime()) / 1000))
-        : 0
       return {
         ...session,
         status: 'paused' as const,
-        accumulatedSeconds: session.accumulatedSeconds + Math.min(90, sinceCheckpoint),
+        secondsByDay: sessionSecondsByDay(session, world.profile.timezone),
+        // 重启或恢复快照只能信任已落盘时间，不能推测离线学习时长。
+        accumulatedSeconds: session.accumulatedSeconds,
         lastResumedAt: undefined,
         pausedAt: now
       }
@@ -325,6 +320,7 @@ export function planSession(
     scheduledAt,
     status: 'planned',
     accumulatedSeconds: 0,
+    secondsByDay: {},
     evidenceIds: []
   }
 
@@ -361,6 +357,7 @@ export function startSession(world: WorldState, sessionId: string, now = new Dat
     ? {
         ...session,
         status: 'active' as const,
+        secondsByDay: sessionSecondsByDay(session, world.profile.timezone),
         startedAt: session.startedAt ?? now,
         lastResumedAt: now,
         pausedAt: undefined
@@ -391,9 +388,8 @@ export function pauseSession(world: WorldState, sessionId: string, now = new Dat
     sessions: world.sessions.map((session) => {
       if (session.id !== sessionId || session.status !== 'active') return session
       return {
-        ...session,
+        ...checkpointSession(session, world.profile.timezone, now),
         status: 'paused' as const,
-        accumulatedSeconds: getSessionActiveSeconds(session, now),
         lastResumedAt: undefined,
         pausedAt: now
       }
@@ -408,9 +404,9 @@ export function abandonSession(world: WorldState, sessionId: string, now = new D
     ...world,
     sessions: world.sessions.map((session) => session.id === sessionId
       ? {
-          ...session,
+          ...checkpointSession(session, world.profile.timezone, now),
           status: 'abandoned' as const,
-          accumulatedSeconds: getSessionActiveSeconds(session, now),
+          draft: undefined,
           lastResumedAt: undefined,
           endedAt: now
         }
@@ -500,6 +496,9 @@ export function settleSession(
   if (world.sessions.some((session) => session.clientMutationId === input.clientMutationId)) return world
 
   const drafts = validateEvidence(input.evidence)
+  if (input.score != null && (!Number.isFinite(input.score) || input.score < 0)) {
+    throw new Error('验收分数必须是有效的非负数字。')
+  }
   const { campaign, node } = findNode(world, target.nodeId)
   const derivedNode = deriveCampaign(campaign, now).nodes.find((item) => item.id === node.id)!
   if (node.kind === 'capital' && input.outcome === 'achieved' && node.scoreTarget != null) {
@@ -508,7 +507,7 @@ export function settleSession(
     }
   }
 
-  const activeSeconds = Math.max(1, getSessionActiveSeconds(target, now))
+  const activeSeconds = getSessionActiveSeconds(target, now)
   const earnedMinutes = Math.max(1, Math.ceil(activeSeconds / 60))
   const evidence: Evidence[] = drafts.map((draft) => ({
     id: makeId('evidence'),
@@ -584,8 +583,9 @@ export function settleSession(
   }
 
   const updatedSession: StudySession = {
-    ...target,
+    ...checkpointSession(target, world.profile.timezone, now),
     status: 'settled',
+    draft: undefined,
     accumulatedSeconds: activeSeconds,
     lastResumedAt: undefined,
     endedAt: now,
@@ -669,6 +669,23 @@ type UpgradeableWorldState = Omit<WorldState, 'version' | 'rewards'> & {
   rewards?: WorldState['rewards']
 }
 
+function upgradeCampaignData(input: Campaign): Campaign {
+  const campaign = upgradeCampaignHierarchy(input)
+  return {
+    ...campaign,
+    nodes: campaign.nodes.map((node) => ({
+      ...node,
+      review: {
+        ...node.review,
+        intervalDays: node.review.intervalDays ?? REVIEW_INTERVAL_DAYS[clamp(node.review.step, 0, REVIEW_INTERVAL_DAYS.length - 1)],
+        ease: node.review.ease ?? 2.3,
+        successfulReviews: node.review.successfulReviews ?? 0,
+        lapses: node.review.lapses ?? 0
+      }
+    }))
+  }
+}
+
 export function upgradeWorldState(world: UpgradeableWorldState): WorldState {
   const dailyTroops = world.profile.dailyTroops
     ?? Math.max(30, Math.round((world.profile.weeklyBudget ?? 300) / 5 / 15) * 15)
@@ -683,20 +700,16 @@ export function upgradeWorldState(world: UpgradeableWorldState): WorldState {
       customNpcCharacters,
       npcAssignments: normalizeNpcAssignments(world.profile.npcAssignments, getNpcCharacterIds(customNpcCharacters))
     },
-    campaigns: world.campaigns.map(upgradeCampaignHierarchy).map((campaign) => ({
-      ...campaign,
-      nodes: campaign.nodes.map((node) => ({
-        ...node,
-        review: {
-          ...node.review,
-          intervalDays: node.review.intervalDays ?? REVIEW_INTERVAL_DAYS[clamp(node.review.step, 0, REVIEW_INTERVAL_DAYS.length - 1)],
-          ease: node.review.ease ?? 2.3,
-          successfulReviews: node.review.successfulReviews ?? 0,
-          lapses: node.review.lapses ?? 0
-        }
-      }))
-    })),
-    mapHistories: world.mapHistories ?? [],
+    campaigns: world.campaigns.map(upgradeCampaignData),
+    mapHistories: (world.mapHistories ?? []).map((history) => {
+      const campaign = world.campaigns.find((item) => item.id === history.campaignId)
+      if (!campaign) throw new Error('版图历史引用了不存在的战役。')
+      const upgradeSnapshot = (snapshot: typeof history.past[number]) => {
+        const upgraded = upgradeCampaignData({ ...campaign, nodes: snapshot.nodes, edges: snapshot.edges })
+        return { ...snapshot, nodes: upgraded.nodes, edges: upgraded.edges }
+      }
+      return { ...history, past: history.past.map(upgradeSnapshot), future: history.future.map(upgradeSnapshot) }
+    }),
     rewards: upgradeRewardSystem(world.rewards)
   }
 }
@@ -738,34 +751,17 @@ export function getMostUrgentNode(world: WorldState, now = new Date().toISOStrin
   return nodes.find((node) => node.effectiveState === 'available' || node.effectiveState === 'sieging')
 }
 
-function dayKeyAtTimezone(iso: string, timezone: string): string {
-  try {
-    return new Intl.DateTimeFormat('en-CA', {
-      timeZone: timezone,
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit'
-    }).format(new Date(iso))
-  } catch {
-    return iso.slice(0, 10)
-  }
-}
-
 export function getDailyTroopStatus(
   world: WorldState,
   now = new Date().toISOString(),
   quotaOverride?: number
 ): DailyTroopStatus {
   const timezone = world.profile.timezone || 'Asia/Hong_Kong'
-  const dayKey = dayKeyAtTimezone(now, timezone)
+  const dayKey = localDayKey(now, timezone)
   const quotaMinutes = clamp(quotaOverride ?? world.profile.dailyTroops ?? 90, 15, 240)
-  const spentMinutes = world.sessions
-    .filter((session) => {
-      if (session.status === 'planned') return false
-      const reference = session.startedAt ?? session.scheduledAt
-      return dayKeyAtTimezone(reference, timezone) === dayKey
-    })
-    .reduce((total, session) => total + Math.ceil(getSessionActiveSeconds(session, now) / 60), 0)
+  const spentSeconds = world.sessions.reduce((total, session) => session.status === 'planned'
+    ? total : total + (sessionSecondsByDay(session, timezone, now)[dayKey] ?? 0), 0)
+  const spentMinutes = Math.ceil(spentSeconds / 60)
   const remainingMinutes = Math.max(0, quotaMinutes - spentMinutes)
   return {
     quotaMinutes,

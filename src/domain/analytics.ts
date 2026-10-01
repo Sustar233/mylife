@@ -1,5 +1,5 @@
-import type { DerivedCampaign, SessionOutcome, WorldState } from './types'
-import { DAY_MS } from './utils'
+import type { DerivedCampaign, WorldState } from './types'
+import { DAY_MS, localDayKey, shiftDayKey } from './utils'
 
 export interface DailyLearningPoint {
   day: string
@@ -28,29 +28,8 @@ export interface LearningAnalytics {
   weakTerritories: WeakTerritoryInsight[]
 }
 
-function localDayKey(value: string, timezone: string): string {
-  try {
-    const parts = new Intl.DateTimeFormat('en-US', {
-      timeZone: timezone,
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit'
-    }).formatToParts(new Date(value))
-    const part = (type: Intl.DateTimeFormatPartTypes) => parts.find((item) => item.type === type)?.value ?? ''
-    return `${part('year')}-${part('month')}-${part('day')}`
-  } catch {
-    return value.slice(0, 10)
-  }
-}
-
 function sessionMinutes(seconds: number): number {
   return Math.max(1, Math.ceil(seconds / 60))
-}
-
-function shiftDayKey(dayKey: string, days: number): string {
-  const date = new Date(`${dayKey}T12:00:00.000Z`)
-  date.setUTCDate(date.getUTCDate() + days)
-  return date.toISOString().slice(0, 10)
 }
 
 export function getLearningAnalytics(
@@ -60,46 +39,60 @@ export function getLearningAnalytics(
 ): LearningAnalytics {
   const nowMs = new Date(now).getTime()
   const timezone = world.profile.timezone || 'Asia/Hong_Kong'
-  const start7 = nowMs - 7 * DAY_MS
-  const start14 = nowMs - 14 * DAY_MS
-  const settled = world.sessions.filter((session) => session.status === 'settled' && session.endedAt)
-  const sumBetween = (start: number, end: number) => settled
-    .filter((session) => {
-      const time = new Date(session.endedAt!).getTime()
-      return time >= start && time < end
-    })
-    .reduce((total, session) => total + sessionMinutes(session.accumulatedSeconds), 0)
-  const last7Minutes = sumBetween(start7, nowMs + 1)
-  const previous7Minutes = sumBetween(start14, start7)
-  const achieved = settled.filter((session) => session.outcome === 'achieved').length
+  const today = localDayKey(now, timezone)
+  const start7 = shiftDayKey(today, -6)
+  const start14 = shiftDayKey(today, -13)
+  const byDay = new Map<string, { minutes: number; achieved: number }>()
+  const failureByNode = new Map<string, number>()
+  let settledCount = 0
+  let achieved = 0
+  let last7Minutes = 0
+  let previous7Minutes = 0
+  for (const session of world.sessions) {
+    if (session.status !== 'settled' || !session.endedAt) continue
+    const endedMs = new Date(session.endedAt).getTime()
+    if (!Number.isFinite(endedMs) || endedMs > nowMs) continue
+    const day = localDayKey(session.endedAt, timezone)
+    const success = session.outcome === 'achieved' ? 1 : 0
+    // 新记录按实际学习日期统计；没有分日记录的历史战报保留原有口径。
+    const daySeconds = session.secondsByDay ?? { [day]: session.accumulatedSeconds }
+    for (const [studyDay, seconds] of Object.entries(daySeconds)) {
+      if (studyDay > today || (session.secondsByDay && seconds === 0)) continue
+      const minutes = sessionMinutes(seconds)
+      const studyPoint = byDay.get(studyDay) ?? { minutes: 0, achieved: 0 }
+      studyPoint.minutes += minutes
+      byDay.set(studyDay, studyPoint)
+      if (studyDay >= start7) last7Minutes += minutes
+      else if (studyDay >= start14) previous7Minutes += minutes
+    }
+    const point = byDay.get(day) ?? { minutes: 0, achieved: 0 }
+    point.achieved += success
+    byDay.set(day, point)
+    settledCount += 1
+    achieved += success
+    if (!success) failureByNode.set(session.nodeId, (failureByNode.get(session.nodeId) ?? 0) + 1)
+  }
 
   const daily: DailyLearningPoint[] = Array.from({ length: 7 }, (_, index) => {
-    const date = new Date(nowMs - (6 - index) * DAY_MS)
-    const key = localDayKey(date.toISOString(), timezone)
-    const sessions = settled.filter((session) => localDayKey(session.endedAt!, timezone) === key)
+    const key = shiftDayKey(today, index - 6)
+    const point = byDay.get(key)
     return {
       day: key,
       label: `${Number(key.slice(5, 7))}/${Number(key.slice(8, 10))}`,
-      minutes: sessions.reduce((total, session) => total + sessionMinutes(session.accumulatedSeconds), 0),
-      achieved: sessions.filter((session) => session.outcome === 'achieved').length
+      minutes: point?.minutes ?? 0,
+      achieved: point?.achieved ?? 0
     }
   })
 
-  const studyDays = new Set(settled.map((session) => localDayKey(session.endedAt!, timezone)))
   let currentStreak = 0
-  let streakDay = localDayKey(now, timezone)
-  if (!studyDays.has(streakDay)) streakDay = shiftDayKey(streakDay, -1)
-  while (studyDays.has(streakDay)) {
+  let streakDay = today
+  if (!byDay.has(streakDay)) streakDay = shiftDayKey(streakDay, -1)
+  while (byDay.has(streakDay)) {
     currentStreak += 1
     streakDay = shiftDayKey(streakDay, -1)
   }
 
   const activeNodes = campaigns.filter((campaign) => campaign.status !== 'archived').flatMap((campaign) => campaign.nodes.map((node) => ({ campaign, node })))
-  const failureByNode = new Map<string, number>()
-  settled.forEach((session) => {
-    if ((session.outcome as SessionOutcome) === 'achieved') return
-    failureByNode.set(session.nodeId, (failureByNode.get(session.nodeId) ?? 0) + 1)
-  })
   const weakTerritories = activeNodes
     .filter(({ node }) => node.effectiveOwner === 'self' || (failureByNode.get(node.id) ?? 0) > 0)
     .map(({ campaign, node }) => ({
@@ -116,7 +109,7 @@ export function getLearningAnalytics(
     last7Minutes,
     previous7Minutes,
     trendPercent: previous7Minutes ? Math.round((last7Minutes - previous7Minutes) / previous7Minutes * 100) : last7Minutes ? 100 : 0,
-    achievedRate: settled.length ? Math.round(achieved / settled.length * 100) : 0,
+    achievedRate: settledCount ? Math.round(achieved / settledCount * 100) : 0,
     dueNext7Days: activeNodes.filter(({ node }) => node.review.nextReviewAt && new Date(node.review.nextReviewAt).getTime() > nowMs && new Date(node.review.nextReviewAt).getTime() <= nowMs + 7 * DAY_MS).length,
     overdueCount: activeNodes.filter(({ node }) => node.overdue || node.effectiveState === 'lost' || node.effectiveState === 'contested').length,
     currentStreak,

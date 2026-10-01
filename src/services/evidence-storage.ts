@@ -1,5 +1,6 @@
 import Taro from '@tarojs/taro'
 import type { WorldState } from '../domain/types'
+import { referencedImages } from '../domain/image-references'
 
 const MAX_IMAGE_EDGE = 1280
 const JPEG_QUALITY = 0.76
@@ -20,7 +21,7 @@ function setManagedFiles(files: Set<string>): void {
   Taro.setStorageSync(MANAGED_FILE_KEY, [...files])
 }
 
-function registerManagedFile(filePath: string): string {
+export function registerManagedFile(filePath: string): string {
   try {
     const files = getManagedFiles()
     files.add(filePath)
@@ -33,7 +34,7 @@ function registerManagedFile(filePath: string): string {
 
 async function compressH5Image(tempPath: string, maxEdge = MAX_IMAGE_EDGE, quality = JPEG_QUALITY): Promise<string> {
   const response = await fetch(tempPath)
-  if (!response.ok) return tempPath
+  if (!response.ok) throw new Error('图片读取失败，请重新选择。')
   const objectUrl = URL.createObjectURL(await response.blob())
   try {
     const image = await new Promise<HTMLImageElement>((resolve, reject) => {
@@ -47,7 +48,7 @@ async function compressH5Image(tempPath: string, maxEdge = MAX_IMAGE_EDGE, quali
     canvas.width = Math.max(1, Math.round(image.naturalWidth * scale))
     canvas.height = Math.max(1, Math.round(image.naturalHeight * scale))
     const context = canvas.getContext('2d')
-    if (!context) return tempPath
+    if (!context) throw new Error('当前环境无法处理图片，请重试。')
     context.fillStyle = '#eee5cf'
     context.fillRect(0, 0, canvas.width, canvas.height)
     context.drawImage(image, 0, 0, canvas.width, canvas.height)
@@ -61,45 +62,29 @@ async function compressH5Image(tempPath: string, maxEdge = MAX_IMAGE_EDGE, quali
  * 把成果图片限制到 1280px，并保存为跨重启可读取的地址。
  * H5 使用压缩 JPEG data URL，微信端使用 compressImage 后的持久文件。
  */
-export async function persistEvidenceImage(tempPath: string): Promise<string> {
-  try {
-    if (process.env.TARO_ENV === 'h5') return await compressH5Image(tempPath)
-    if (process.env.TARO_ENV === 'weapp') {
-      const compressed = await Taro.compressImage({
-        src: tempPath,
-        quality: 72,
-        compressedWidth: MAX_IMAGE_EDGE,
-        compressedHeight: MAX_IMAGE_EDGE
-      })
-      const result = await Taro.saveFile({ tempFilePath: compressed.tempFilePath })
-      return 'savedFilePath' in result ? registerManagedFile(String(result.savedFilePath)) : compressed.tempFilePath
-    }
-  } catch {
-    return tempPath
+async function persistImage(tempPath: string, maxEdge: number, quality: number): Promise<string> {
+  if (process.env.TARO_ENV === 'h5') return compressH5Image(tempPath, maxEdge, quality)
+  if (process.env.TARO_ENV === 'weapp') {
+    const compressed = await Taro.compressImage({
+      src: tempPath,
+      quality: Math.round(quality * 100),
+      compressedWidth: maxEdge,
+      compressedHeight: maxEdge
+    })
+    const result = await Taro.saveFile({ tempFilePath: compressed.tempFilePath })
+    if ('savedFilePath' in result && result.savedFilePath) return registerManagedFile(String(result.savedFilePath))
+    throw new Error('图片未能保存，请检查本地存储空间。')
   }
-  return tempPath
+  throw new Error('当前平台暂不支持保存图片。')
+}
+
+export function persistEvidenceImage(tempPath: string): Promise<string> {
+  return persistImage(tempPath, MAX_IMAGE_EDGE, JPEG_QUALITY)
 }
 
 /** 压缩并持久化用户自定义幕僚头像。 */
-export async function persistNpcPortrait(tempPath: string): Promise<string> {
-  try {
-    if (process.env.TARO_ENV === 'h5') {
-      return await compressH5Image(tempPath, NPC_PORTRAIT_EDGE, NPC_PORTRAIT_QUALITY)
-    }
-    if (process.env.TARO_ENV === 'weapp') {
-      const compressed = await Taro.compressImage({
-        src: tempPath,
-        quality: 76,
-        compressedWidth: NPC_PORTRAIT_EDGE,
-        compressedHeight: NPC_PORTRAIT_EDGE
-      })
-      const result = await Taro.saveFile({ tempFilePath: compressed.tempFilePath })
-      return 'savedFilePath' in result ? registerManagedFile(String(result.savedFilePath)) : compressed.tempFilePath
-    }
-  } catch {
-    return tempPath
-  }
-  return tempPath
+export function persistNpcPortrait(tempPath: string): Promise<string> {
+  return persistImage(tempPath, NPC_PORTRAIT_EDGE, NPC_PORTRAIT_QUALITY)
 }
 
 export interface EvidenceStorageStats {
@@ -114,13 +99,10 @@ function approximateDataUrlBytes(value: string): number {
   return payload ? Math.floor(payload.length * 0.75) : value.length
 }
 
-export async function getEvidenceStorageStats(world: WorldState): Promise<EvidenceStorageStats> {
+export async function getEvidenceStorageStats(world: WorldState, snapshotWorlds: WorldState[] = []): Promise<EvidenceStorageStats> {
   const referenced = new Set(world.evidence.filter((item) => item.type === 'image').map((item) => item.content))
   if (process.env.TARO_ENV === 'weapp') {
-    const protectedPaths = new Set([
-      ...referenced,
-      ...(world.profile.customNpcCharacters ?? []).map((character) => character.image)
-    ])
+    const protectedPaths = referencedImages([world, ...snapshotWorlds])
     const managed = getManagedFiles()
     const saved = await Taro.getSavedFileList()
     const imageBytes = saved.fileList.filter((file) => referenced.has(file.filePath)).reduce((sum, file) => sum + file.size, 0)
@@ -132,18 +114,13 @@ export async function getEvidenceStorageStats(world: WorldState): Promise<Eviden
       orphanBytes: orphans.reduce((sum, file) => sum + file.size, 0)
     }
   }
-  const imageBytes = world.evidence
-    .filter((item) => item.type === 'image')
-    .reduce((sum, item) => sum + approximateDataUrlBytes(item.content), 0)
+  const imageBytes = [...referenced].reduce((sum, path) => sum + approximateDataUrlBytes(path), 0)
   return { imageCount: referenced.size, imageBytes, orphanCount: 0, orphanBytes: 0 }
 }
 
-export async function cleanupOrphanedEvidence(world: WorldState): Promise<number> {
+export async function cleanupOrphanedEvidence(world: WorldState, snapshotWorlds: WorldState[] = []): Promise<number> {
   if (process.env.TARO_ENV !== 'weapp') return 0
-  const referenced = new Set([
-    ...world.evidence.filter((item) => item.type === 'image').map((item) => item.content),
-    ...(world.profile.customNpcCharacters ?? []).map((character) => character.image)
-  ])
+  const referenced = referencedImages([world, ...snapshotWorlds])
   const managed = getManagedFiles()
   const saved = await Taro.getSavedFileList()
   const orphans = saved.fileList.filter((file) => managed.has(file.filePath) && !referenced.has(file.filePath))

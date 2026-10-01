@@ -23,8 +23,8 @@ export default function AffairsPage() {
       confirmColor: '#50666a'
     })
     if (!confirmed) return
-    actions.beginTruce(days)
-    showUserToast('全境已进入休整', 'success')
+    const result = actions.beginTruce(days)
+    showUserToast(result.ok ? '全境已进入休整' : result.message, result.ok ? 'success' : 'none')
   }
 
   const archiveCurrent = async () => {

@@ -115,6 +115,8 @@ export interface StudySession {
   lastResumedAt?: string
   pausedAt?: string
   accumulatedSeconds: number
+  secondsByDay?: Record<string, number>
+  draft?: BattleDraft
   endedAt?: string
   outcome?: SessionOutcome
   evidenceIds: string[]
@@ -122,6 +124,15 @@ export interface StudySession {
   score?: number
   reviewRating?: ReviewRating
   reward?: SessionReward
+}
+
+export interface BattleDraft {
+  outcome: SessionOutcome
+  note: string
+  link: string
+  images: string[]
+  score: string
+  reviewRating: ReviewRating
 }
 
 export interface SessionReward {

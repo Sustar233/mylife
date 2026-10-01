@@ -10,9 +10,10 @@ import {
   upgradeWorldState
 } from '../src/domain/engine'
 import type { CampaignCreationInput, WorldState } from '../src/domain/types'
-import { addDays, DAY_MS } from '../src/domain/utils'
+import { addDays, DAY_MS, localDayKey } from '../src/domain/utils'
 import { formatWorldBackup, readWorldBackupPayload } from '../src/domain/backup-format'
 import { normalizeSnapshotList, normalizeWorldState } from '../src/services/world-normalization'
+import { referencedImages } from '../src/domain/image-references'
 import {
   calculateSessionReward,
   creditSessionReward,
@@ -60,6 +61,42 @@ describe('自适应复习', () => {
 })
 
 describe('今日作战与军情分析', () => {
+  it('七日统计与图表按本地日历对齐，排除未来记录', () => {
+    const world = createWorld()
+    const node = world.campaigns[0].nodes[0]
+    const dates = [
+      '2026-08-12T15:59:59.000Z', // 香港 8/12：上个七日
+      '2026-08-12T16:00:00.000Z', // 香港 8/13：本周第一天
+      '2026-08-19T08:00:00.000Z', // 当前时刻
+      '2026-08-19T08:00:01.000Z' // 未来记录
+    ]
+    world.sessions = dates.map((endedAt, index) => ({
+      id: `calendar-${index}`, campaignId: node.campaignId, nodeId: node.id,
+      mode: 'review', status: 'settled', plannedMinutes: 15, accumulatedSeconds: 900,
+      scheduledAt: endedAt, endedAt, outcome: 'achieved', evidenceIds: []
+    }))
+    const analytics = getLearningAnalytics(world, deriveWorld(world, NOW), NOW)
+    assert.equal(analytics.last7Minutes, 30)
+    assert.equal(analytics.previous7Minutes, 15)
+    assert.equal(analytics.daily.reduce((total, point) => total + point.minutes, 0), analytics.last7Minutes)
+    assert.equal(analytics.daily[0].day, '2026-08-13')
+  })
+
+  it('夏令时切换仍显示连续七个日历日', () => {
+    const world = createWorld()
+    world.profile.timezone = 'America/New_York'
+    const analytics = getLearningAnalytics(world, [], '2026-11-02T04:30:00.000Z')
+    assert.deepEqual(analytics.daily.map((point) => point.day), [
+      '2026-10-26', '2026-10-27', '2026-10-28', '2026-10-29', '2026-10-30', '2026-10-31', '2026-11-01'
+    ])
+  })
+
+  it('日期工具跨时区输出稳定，无效时区可以回退', () => {
+    assert.equal(localDayKey('2026-08-19T23:00:00.000Z', 'Asia/Hong_Kong'), '2026-08-20')
+    assert.equal(localDayKey('2026-08-19T23:00:00.000Z', 'America/New_York'), '2026-08-19')
+    assert.equal(localDayKey(NOW, 'invalid/timezone'), '2026-08-19')
+  })
+
   it('即将到期的领地会进入今日作战日历并产生提醒角标', () => {
     let world = createWorld()
     world = {
@@ -142,6 +179,21 @@ describe('今日作战与军情分析', () => {
 })
 
 describe('存档迁移', () => {
+  it('图片清理保护旧快照的成果与头像，不把文字链接视为文件', () => {
+    const current = createWorld()
+    const snapshot = createWorld()
+    snapshot.evidence = [
+      { id: 'image', sessionId: 's', type: 'image', content: '/saved/proof.jpg', createdAt: NOW },
+      { id: 'text', sessionId: 's', type: 'text', content: '/saved/orphan.jpg', createdAt: NOW }
+    ]
+    snapshot.profile.customNpcCharacters = [{ id: 'custom', name: '幕僚', trait: '', description: '', image: '/saved/portrait.jpg', createdAt: NOW }]
+    const protectedPaths = referencedImages([current, snapshot])
+    assert.ok(protectedPaths.has('/saved/proof.jpg'))
+    assert.ok(protectedPaths.has('/saved/portrait.jpg'))
+    assert.ok(!protectedPaths.has('/saved/orphan.jpg'))
+    assert.equal(referencedImages([current]).size, 0)
+  })
+
   it('版本 1 存档会补齐提醒和自适应复习字段', () => {
     const current = createWorld()
     const legacy = { ...current, version: 1, profile: { ...current.profile, reminders: undefined, npcAssignments: undefined, customNpcCharacters: undefined }, rewards: undefined }

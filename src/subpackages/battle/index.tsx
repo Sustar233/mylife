@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Button, Image, Input, Text, Textarea, View } from '@tarojs/components'
 import Taro, { useRouter } from '@tarojs/taro'
 import { getSessionActiveSeconds } from '../../domain/engine'
@@ -7,6 +7,7 @@ import { formatDuration, isValidUrl } from '../../domain/utils'
 import { persistEvidenceImage } from '../../services/evidence-storage'
 import { confirmAction, goBack, openTab, showUserToast } from '../../services/taro-ui'
 import { useWorld } from '../../state/world-context'
+import { useBattleDraft } from '../../state/use-battle-draft'
 import marchBackground from './assets/march.jpg'
 import clashBackground from './assets/clash.jpg'
 import siegeBackground from './assets/siege.jpg'
@@ -42,21 +43,21 @@ export default function BattlePage() {
   const sessionId = router.params.sessionId ?? ''
   const { world, campaigns, hydrated, actions } = useWorld()
   const [tick, setTick] = useState(() => new Date().toISOString())
-  const [outcome, setOutcome] = useState<SessionOutcome>('partial')
-  const [note, setNote] = useState('')
-  const [link, setLink] = useState('')
-  const [images, setImages] = useState<string[]>([])
-  const [score, setScore] = useState('')
-  const [reviewRating, setReviewRating] = useState<ReviewRating>('good')
+  const { draft, updateDraft, saveStatus } = useBattleDraft(sessionId)
+  const { outcome, note, link, images, score, reviewRating } = draft
+  const [choosingImages, setChoosingImages] = useState(false)
+  const imageSelectionRef = useRef(false)
 
   const session = world.sessions.find((item) => item.id === sessionId)
   const campaign = campaigns.find((item) => item.id === session?.campaignId)
   const node = campaign?.nodes.find((item) => item.id === session?.nodeId)
 
   useEffect(() => {
+    if (session?.status !== 'active') return
+    setTick(new Date().toISOString())
     const timer = setInterval(() => setTick(new Date().toISOString()), 1000)
     return () => clearInterval(timer)
-  }, [])
+  }, [session?.status])
 
   const elapsedSeconds = session ? getSessionActiveSeconds(session, tick) : 0
   const plannedSeconds = (session?.plannedMinutes ?? 25) * 60
@@ -73,16 +74,28 @@ export default function BattlePage() {
   const sessionEvidence = useMemo(() => world.evidence.filter((item) => session?.evidenceIds.includes(item.id)), [world.evidence, session])
 
   const chooseImages = async () => {
+    if (imageSelectionRef.current || images.length >= 3) return
+    imageSelectionRef.current = true
+    setChoosingImages(true)
     try {
       const result = await Taro.chooseImage({ count: Math.max(1, 3 - images.length), sizeType: ['compressed'], sourceType: ['album', 'camera'] })
-      const persistentPaths = await Promise.all(result.tempFilePaths.map(persistEvidenceImage))
-      setImages((current) => [...current, ...persistentPaths].slice(0, 3))
-    } catch {
-      // 用户取消选择时无需提示。
+      // 逐张压缩，避免同时解码多张原图造成手机内存峰值。
+      const persistentPaths: string[] = []
+      for (const path of result.tempFilePaths.slice(0, 3 - images.length)) {
+        persistentPaths.push(await persistEvidenceImage(path))
+      }
+      updateDraft({ images: [...images, ...persistentPaths].slice(0, 3) })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : (error as { errMsg?: string })?.errMsg ?? ''
+      if (!/cancel/i.test(message)) showUserToast('图片保存失败，请检查空间后重试')
+    } finally {
+      imageSelectionRef.current = false
+      setChoosingImages(false)
     }
   }
 
   const submit = () => {
+    if (imageSelectionRef.current) return
     const hasEvidence = note.trim().length >= 20 || isValidUrl(link) || images.length > 0
     if (!hasEvidence) {
       showUserToast('请写满 20 字，或添加链接/图片')
@@ -92,7 +105,11 @@ export default function BattlePage() {
       showUserToast('成果链接需以 http:// 或 https:// 开头')
       return
     }
-    const numericScore = score ? Number(score) : undefined
+    const numericScore = score.trim() ? Number(score) : undefined
+    if (numericScore != null && (!Number.isFinite(numericScore) || numericScore < 0)) {
+      showUserToast('请输入有效的非负分数')
+      return
+    }
     if (node?.scoreTarget != null && outcome === 'achieved' && (numericScore == null || numericScore < node.scoreTarget)) {
       showUserToast(`首都线为 ${node.scoreTarget} 分`)
       return
@@ -118,7 +135,8 @@ export default function BattlePage() {
   const abandon = async () => {
     const confirmed = await confirmAction({ title: '撤回部队？', content: '有效时间会保留在本次行动中，但不会提交成果证据。', confirmColor: '#50666a' })
     if (!confirmed) return
-    actions.abandonExpedition(sessionId)
+    const result = actions.abandonExpedition(sessionId)
+    if (!result.ok) { showUserToast(result.message); return }
     goBack()
   }
 
@@ -228,8 +246,7 @@ export default function BattlePage() {
               key={item.value}
               className={`outcome-card ${outcome === item.value ? 'outcome-card--active' : ''}`}
               onClick={() => {
-                setOutcome(item.value)
-                setReviewRating(item.value === 'failed' ? 'again' : item.value === 'partial' ? 'hard' : 'good')
+                updateDraft({ outcome: item.value, reviewRating: item.value === 'failed' ? 'again' : item.value === 'partial' ? 'hard' : 'good' })
               }}
             >
               <View className='outcome-title'>{item.title}</View>
@@ -241,30 +258,31 @@ export default function BattlePage() {
         <Text className='field-label'>记忆反馈 · 决定下次防守时间</Text>
         <View className='rating-grid'>
           {REVIEW_RATINGS.map((item) => (
-            <View key={item.value} className={`rating-card ${reviewRating === item.value ? 'rating-card--active' : ''}`} onClick={() => setReviewRating(item.value)}>
+            <View key={item.value} className={`rating-card ${reviewRating === item.value ? 'rating-card--active' : ''}`} onClick={() => updateDraft({ reviewRating: item.value })}>
               <Text>{item.title}</Text>
               <small>{item.description}</small>
             </View>
           ))}
         </View>
 
-        <Text className='field-label'>成果说明（不少于 20 字）</Text>
+        <Text className='field-label'>成果说明（文字满 20 字、链接或图片任选一种）</Text>
         <Textarea
           className='text-area evidence-note'
           maxlength={500}
           value={note}
           placeholder='例如：我已独立实现二叉树前中后序遍历，并解释了三种遍历的使用场景…'
-          onInput={(event) => setNote(event.detail.value)}
+          onInput={(event) => updateDraft({ note: event.detail.value })}
         />
         <View className={`character-count ${note.trim().length >= 20 ? 'character-count--ok' : ''}`}>{note.trim().length}/20</View>
+        <View className='draft-save-status'>{saveStatus}</View>
 
         <Text className='field-label'>成果链接（可选）</Text>
-        <Input className='text-input' value={link} placeholder='https://...' onInput={(event) => setLink(event.detail.value)} />
+        <Input className='text-input' maxlength={4096} value={link} placeholder='https://...' onInput={(event) => updateDraft({ link: event.detail.value })} />
 
         {node.scoreTarget != null && (
           <>
             <Text className='field-label'>本次模拟分数 · 首都线 {node.scoreTarget}</Text>
-            <Input className='text-input score-field' type='number' value={score} placeholder='输入分数' onInput={(event) => setScore(event.detail.value)} />
+            <Input className='text-input score-field' type='number' maxlength={32} value={score} placeholder='输入分数' onInput={(event) => updateDraft({ score: event.detail.value })} />
           </>
         )}
 
@@ -273,13 +291,13 @@ export default function BattlePage() {
           {images.map((path) => (
             <View key={path} className='image-tile'>
               <Image src={path} mode='aspectFill' />
-              <Text onClick={() => setImages((current) => current.filter((item) => item !== path))}>×</Text>
+              <Text onClick={() => { if (!imageSelectionRef.current) updateDraft({ images: images.filter((item) => item !== path) }) }}>×</Text>
             </View>
           ))}
-          {images.length < 3 && <View className='image-add' onClick={chooseImages}><Text>＋</Text><small>添加证据</small></View>}
+          {images.length < 3 && <View className='image-add' onClick={chooseImages}><Text>{choosingImages ? '…' : '＋'}</Text><small>{choosingImages ? '保存图片中' : '添加证据'}</small></View>}
         </View>
 
-        <Button className='primary-button settlement-submit' onClick={submit}>提交战果并结算</Button>
+        <Button className='primary-button settlement-submit' loading={choosingImages} disabled={choosingImages} onClick={submit}>{choosingImages ? '正在保存成果图片…' : '提交战果并结算'}</Button>
       </View>
     </View>
   )

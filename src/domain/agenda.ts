@@ -1,5 +1,7 @@
 import type { DerivedCampaign, SessionMode, WorldState } from './types'
 import { HOUR_MS } from './utils'
+import { getDailyTroopStatus } from './engine'
+import { affordableMinutes } from './session-planning'
 
 export type AgendaItemKind = 'active' | 'overdue' | 'due' | 'frontline'
 
@@ -15,6 +17,7 @@ export interface AgendaItem {
   minutes: number
   mode: SessionMode
   urgency: number
+  blockedReason?: string
 }
 
 export function getTodayAgenda(
@@ -94,10 +97,16 @@ export function getTodayAgenda(
     }
   }
 
+  const remainingByCampaign = new Map(activeCampaigns.map((campaign) => [campaign.id, getDailyTroopStatus(world, now, campaign.dailyTroops).remainingMinutes]))
+  const hasActiveSession = world.sessions.some((session) => session.status === 'active' || session.status === 'paused')
   return items
     .filter((item, index, array) => array.findIndex((candidate) => candidate.nodeId === item.nodeId) === index)
     .sort((a, b) => b.urgency - a.urgency || new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime())
-    .slice(0, 8)
+    .map((item) => {
+      if (item.kind === 'active') return item
+      const minutes = affordableMinutes(remainingByCampaign.get(item.campaignId) ?? 0, item.minutes)
+      return { ...item, minutes: minutes ?? item.minutes, blockedReason: hasActiveSession ? '请先处理当前行动' : minutes == null ? '今日兵力不足，次日恢复' : undefined }
+    })
 }
 
 export function getReminderCount(world: WorldState, campaigns: DerivedCampaign[], now = new Date().toISOString()): number {

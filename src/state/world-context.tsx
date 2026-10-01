@@ -9,13 +9,16 @@ import {
   type PropsWithChildren
 } from 'react'
 import Taro from '@tarojs/taro'
+import { Button, View } from '@tarojs/components'
 import {
   abandonSession,
   archiveCampaign,
   checkpointActiveSessions,
   createCampaignFromTemplate,
   createInitialWorldState,
-  deriveWorld,
+  deriveCampaign,
+  findNode,
+  getDailyTroopStatus,
   pauseSession,
   pauseInterruptedSessions,
   planSession,
@@ -44,6 +47,9 @@ import type {
   RewardItemInput,
   WorldState
 } from '../domain/types'
+import type { BattleDraft } from '../domain/types'
+import { saveBattleDraft } from '../domain/battle-draft'
+import { affordableMinutes } from '../domain/session-planning'
 import { makeId } from '../domain/utils'
 import { showUserToast } from '../services/taro-ui'
 import { normalizeWorldState, worldRepository } from '../services/world-repository'
@@ -54,9 +60,9 @@ interface WorldActions {
   beginExpedition(nodeId: string, minutes: number, mode: SessionMode): ExpeditionStartResult
   pauseExpedition(sessionId: string): void
   resumeExpedition(sessionId: string): void
-  abandonExpedition(sessionId: string): void
+  abandonExpedition(sessionId: string): MapEditResult
   settleExpedition(sessionId: string, input: Omit<SettlementInput, 'clientMutationId'>): MapEditResult
-  beginTruce(days: number): void
+  beginTruce(days: number): MapEditResult
   archive(campaignId: string): void
   applyMapOperation(operation: (current: WorldState, timestamp: string) => WorldState): MapEditResult
   replaceWorld(nextWorld: WorldState, snapshotLabel?: string): void
@@ -69,6 +75,7 @@ interface WorldActions {
   assignNpc(duty: NpcDuty, characterId: NpcCharacterId): MapEditResult
   createNpc(input: NpcCharacterInput): MapEditResult
   deleteNpc(characterId: NpcCharacterId): MapEditResult
+  saveDraft(sessionId: string, draft: BattleDraft): MapEditResult
 }
 
 export type MapEditResult = { ok: true } | { ok: false; message: string }
@@ -92,42 +99,35 @@ export function WorldProvider({ children }: PropsWithChildren) {
   const [world, setWorld] = useState<WorldState>(() => createInitialWorldState())
   const worldRef = useRef(world)
   const [hydrated, setHydrated] = useState(false)
+  const [loadError, setLoadError] = useState('')
   const [now, setNow] = useState(() => new Date().toISOString())
 
-  const commitWorld = useCallback((next: WorldState) => {
+  const commitWorld = useCallback((next: WorldState, persist = true) => {
+    if (next === worldRef.current) return
+    if (persist) worldRepository.save(next)
     worldRef.current = next
     setWorld(next)
   }, [])
 
-  const checkpointWorld = useCallback((persistImmediately = false) => {
+  const checkpointWorld = useCallback(() => {
     const timestamp = new Date().toISOString()
     const next = checkpointActiveSessions(worldRef.current, timestamp)
     setNow(timestamp)
     if (next === worldRef.current) return
-    commitWorld(next)
-    if (persistImmediately) {
-      try {
-        worldRepository.save(next)
-      } catch {
-        // 正常保存副作用会继续提示空间不足，此处只尽力保存离开前检查点。
-      }
-    }
+    try { commitWorld(next) } catch { showUserToast('计时未能保存，请检查本地空间') }
   }, [commitWorld])
 
-  useEffect(() => {
-    const saved = worldRepository.load()
-    if (saved) commitWorld(pauseInterruptedSessions(saved))
-    setHydrated(true)
-  }, [commitWorld])
-
-  useEffect(() => {
-    if (!hydrated) return
+  const loadWorld = useCallback(() => {
     try {
-      worldRepository.save(world)
-    } catch {
-      showUserToast('本地空间不足，存档未能保存')
+      const saved = worldRepository.load()
+      if (saved) commitWorld(pauseInterruptedSessions(saved), false)
+      setLoadError('')
+      setHydrated(true)
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : '存档读取失败，请重试。')
     }
-  }, [world, hydrated])
+  }, [commitWorld])
+  useEffect(() => { loadWorld() }, [loadWorld])
 
   useEffect(() => {
     const timer = setInterval(() => checkpointWorld(), 30_000)
@@ -135,7 +135,7 @@ export function WorldProvider({ children }: PropsWithChildren) {
   }, [checkpointWorld])
 
   useEffect(() => {
-    const handleHide = () => checkpointWorld(true)
+    const handleHide = () => checkpointWorld()
     if (process.env.TARO_ENV === 'weapp') Taro.onAppHide(handleHide)
     if (process.env.TARO_ENV === 'h5') {
       const handleVisibility = () => {
@@ -149,21 +149,26 @@ export function WorldProvider({ children }: PropsWithChildren) {
     }
   }, [checkpointWorld])
 
-  const createCampaign = useCallback((input: CampaignCreationInput): MapEditResult => {
+  const runWorldOperation = useCallback((operation: (current: WorldState, timestamp: string) => WorldState): MapEditResult => {
     const timestamp = new Date().toISOString()
     try {
-      const next = createCampaignFromTemplate(worldRef.current, input, timestamp)
+      const next = operation(worldRef.current, timestamp)
       setNow(timestamp)
       commitWorld(next)
       return { ok: true }
     } catch (error) {
-      return { ok: false, message: error instanceof Error ? error.message : '战役创建失败。' }
+      return { ok: false, message: error instanceof Error ? error.message : '操作失败，请稍后重试。' }
     }
   }, [commitWorld])
 
+  const createCampaign = useCallback((input: CampaignCreationInput) => runWorldOperation(
+    (current, timestamp) => createCampaignFromTemplate(current, input, timestamp)
+  ), [runWorldOperation])
+
   const selectCampaign = useCallback((campaignId: string) => {
-    commitWorld(setActiveCampaign(worldRef.current, campaignId))
-  }, [commitWorld])
+    const result = runWorldOperation((current) => setActiveCampaign(current, campaignId))
+    if (!result.ok) showUserToast(result.message)
+  }, [runWorldOperation])
 
   const beginExpedition = useCallback((nodeId: string, minutes: number, mode: SessionMode): ExpeditionStartResult => {
     const current = worldRef.current
@@ -172,7 +177,11 @@ export function WorldProvider({ children }: PropsWithChildren) {
     const timestamp = new Date().toISOString()
     const sessionId = makeId('session')
     try {
-      const planned = planSession(current, nodeId, minutes, mode, timestamp, sessionId)
+      const { campaign } = findNode(current, nodeId)
+      const remaining = getDailyTroopStatus(current, timestamp, campaign.dailyTroops).remainingMinutes
+      const chosenMinutes = affordableMinutes(remaining, minutes)
+      if (chosenMinutes == null) return { ok: false, message: '今日兵力不足，次日 00:00 自动恢复。' }
+      const planned = planSession(current, nodeId, chosenMinutes, mode, timestamp, sessionId)
       const started = startSession(planned.world, sessionId, timestamp)
       setNow(timestamp)
       commitWorld(started)
@@ -186,10 +195,9 @@ export function WorldProvider({ children }: PropsWithChildren) {
   }, [commitWorld])
 
   const pauseExpedition = useCallback((sessionId: string) => {
-    const timestamp = new Date().toISOString()
-    setNow(timestamp)
-    commitWorld(pauseSession(worldRef.current, sessionId, timestamp))
-  }, [commitWorld])
+    const result = runWorldOperation((current, timestamp) => pauseSession(current, sessionId, timestamp))
+    if (!result.ok) showUserToast(result.message)
+  }, [runWorldOperation])
 
   const resumeExpedition = useCallback((sessionId: string) => {
     const timestamp = new Date().toISOString()
@@ -202,10 +210,8 @@ export function WorldProvider({ children }: PropsWithChildren) {
   }, [commitWorld])
 
   const abandonExpedition = useCallback((sessionId: string) => {
-    const timestamp = new Date().toISOString()
-    setNow(timestamp)
-    commitWorld(abandonSession(worldRef.current, sessionId, timestamp))
-  }, [commitWorld])
+    return runWorldOperation((current, timestamp) => abandonSession(current, sessionId, timestamp))
+  }, [runWorldOperation])
 
   const settleExpedition = useCallback((sessionId: string, input: Omit<SettlementInput, 'clientMutationId'>): MapEditResult => {
     const timestamp = new Date().toISOString()
@@ -227,33 +233,19 @@ export function WorldProvider({ children }: PropsWithChildren) {
     const end = new Date(start.getTime() + days * 24 * 60 * 60 * 1000)
     const timestamp = start.toISOString()
     setNow(timestamp)
-    commitWorld(setTruce(worldRef.current, timestamp, end.toISOString(), timestamp))
-  }, [commitWorld])
+    return runWorldOperation((current) => setTruce(current, timestamp, end.toISOString(), timestamp))
+  }, [runWorldOperation])
 
   const archive = useCallback((campaignId: string) => {
-    const timestamp = new Date().toISOString()
-    commitWorld(archiveCampaign(worldRef.current, campaignId, timestamp))
-  }, [commitWorld])
+    const result = runWorldOperation((current, timestamp) => archiveCampaign(current, campaignId, timestamp))
+    if (!result.ok) showUserToast(result.message)
+  }, [runWorldOperation])
 
-  const applyMapOperation = useCallback((operation: (current: WorldState, timestamp: string) => WorldState): MapEditResult => {
-    const timestamp = new Date().toISOString()
-    try {
-      const next = operation(worldRef.current, timestamp)
-      setNow(timestamp)
-      commitWorld(next)
-      return { ok: true }
-    } catch (error) {
-      return { ok: false, message: error instanceof Error ? error.message : '地图修改失败。' }
-    }
-  }, [commitWorld])
+  const applyMapOperation = runWorldOperation
 
   const replaceWorld = useCallback((nextWorld: WorldState, snapshotLabel = '导入前存档') => {
-    const normalized = normalizeWorldState(nextWorld)
-    try {
-      worldRepository.createSnapshot(worldRef.current, snapshotLabel)
-    } catch {
-      // 快照空间不足不应阻断用户主动导入的有效备份。
-    }
+    const normalized = pauseInterruptedSessions(normalizeWorldState(nextWorld))
+    worldRepository.createSnapshot(worldRef.current, snapshotLabel)
     setNow(new Date().toISOString())
     commitWorld(normalized)
   }, [commitWorld])
@@ -261,18 +253,14 @@ export function WorldProvider({ children }: PropsWithChildren) {
   const restoreSnapshot = useCallback((snapshotId: string): MapEditResult => {
     const restored = worldRepository.restoreSnapshot(snapshotId)
     if (!restored) return { ok: false, message: '没有找到这份自动快照。' }
-    try {
-      worldRepository.createSnapshot(worldRef.current, '恢复前存档')
-    } catch {
-      // 当前快照已经校验可用，空间不足时仍应允许恢复。
-    }
-    setNow(new Date().toISOString())
-    commitWorld(restored)
-    return { ok: true }
-  }, [commitWorld])
+    return runWorldOperation((current) => {
+      worldRepository.createSnapshot(current, '恢复前存档')
+      return pauseInterruptedSessions(restored)
+    })
+  }, [runWorldOperation])
 
   const updateReminders = useCallback((patch: Partial<ReminderSettings>) => {
-    commitWorld({
+    const result = runWorldOperation(() => ({
       ...worldRef.current,
       profile: {
         ...worldRef.current.profile,
@@ -284,19 +272,15 @@ export function WorldProvider({ children }: PropsWithChildren) {
           ...patch
         }
       }
-    })
-  }, [commitWorld])
+    }))
+    if (!result.ok) showUserToast(result.message)
+  }, [runWorldOperation])
 
-  const runWorldOperation = useCallback((operation: (current: WorldState, timestamp: string) => WorldState): MapEditResult => {
-    const timestamp = new Date().toISOString()
+  const saveDraft = useCallback((sessionId: string, draft: BattleDraft): MapEditResult => {
     try {
-      const next = operation(worldRef.current, timestamp)
-      setNow(timestamp)
-      commitWorld(next)
+      commitWorld(saveBattleDraft(worldRef.current, sessionId, draft))
       return { ok: true }
-    } catch (error) {
-      return { ok: false, message: error instanceof Error ? error.message : '操作失败，请稍后重试。' }
-    }
+    } catch { return { ok: false, message: '草稿未能保存，请检查本地空间' } }
   }, [commitWorld])
 
   const createReward = useCallback((input: RewardItemInput) => runWorldOperation(
@@ -327,20 +311,22 @@ export function WorldProvider({ children }: PropsWithChildren) {
     (current) => deleteNpcCharacter(current, characterId)
   ), [runWorldOperation])
 
-  const campaigns = useMemo(() => deriveWorld(world, now), [world, now])
-  const activeCampaign = campaigns.find((campaign) => campaign.id === world.profile.activeCampaignId)
+  const campaigns = useMemo(() => world.campaigns.map((campaign) => deriveCampaign(campaign, now)), [world.campaigns, now])
+  const activeCampaign = campaigns.find((campaign) => campaign.id === world.profile.activeCampaignId && campaign.status !== 'archived')
     ?? campaigns.find((campaign) => campaign.status !== 'archived')
 
+  const reminderCount = useMemo(() => getReminderCount(world, campaigns, now), [world, campaigns, now])
   useEffect(() => {
-    const count = getReminderCount(world, campaigns, now)
+    const count = reminderCount
     if (count > 0) {
       Taro.setTabBarBadge({ index: 0, text: count > 99 ? '99+' : String(count) }).catch(() => undefined)
     } else {
       Taro.removeTabBarBadge({ index: 0 }).catch(() => undefined)
     }
-  }, [world, campaigns, now])
+  }, [reminderCount])
 
   const actions = useMemo<WorldActions>(() => ({
+    saveDraft,
     createCampaign,
     selectCampaign,
     beginExpedition,
@@ -362,6 +348,7 @@ export function WorldProvider({ children }: PropsWithChildren) {
     createNpc,
     deleteNpc
   }), [
+    saveDraft,
     createCampaign,
     selectCampaign,
     beginExpedition,
@@ -386,7 +373,7 @@ export function WorldProvider({ children }: PropsWithChildren) {
 
   return (
     <WorldContext.Provider value={{ world, campaigns, activeCampaign, hydrated, now, actions }}>
-      {children}
+      {loadError ? <View className='page-shell'><View className='paper-card'><View className='section-title'>暂时无法展开存档</View><View>{loadError}</View><Button className='primary-button' onClick={loadWorld}>重新读取</Button></View></View> : children}
     </WorldContext.Provider>
   )
 }

@@ -26,3 +26,5 @@
   .dossier-head { display: block; }
   .status-stamp { display: inline-block; margin: 0 0 16px; }
 }
+.node-dossier .chip { margin: 0; line-height: 1.4; }
+.node-dossier .chip[disabled]:not([disabled="false"]) { opacity: .45; }

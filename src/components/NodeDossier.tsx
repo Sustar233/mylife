@@ -3,6 +3,9 @@ import { Button, Text, View } from '@tarojs/components'
 import type { DerivedTerritoryNode, SessionMode } from '../domain/types'
 import { actionForNode, OWNER_LABELS, STATE_LABELS } from '../domain/presentation'
 import { formatCompactDate } from '../domain/utils'
+import { getDailyTroopStatus } from '../domain/engine'
+import { affordableMinutes, SESSION_MINUTES } from '../domain/session-planning'
+import { useWorld } from '../state/world-context'
 import './NodeDossier.scss'
 
 interface NodeDossierProps {
@@ -12,8 +15,12 @@ interface NodeDossierProps {
 
 export function NodeDossier({ node, onBegin }: NodeDossierProps) {
   const [minutes, setMinutes] = useState(25)
+  const { world, now, activeCampaign } = useWorld()
+  const remaining = getDailyTroopStatus(world, now, activeCampaign?.dailyTroops).remainingMinutes
+  const selectedMinutes = affordableMinutes(remaining, minutes)
+  const activeSession = world.sessions.some((session) => session.status === 'active' || session.status === 'paused')
   const action = actionForNode(node)
-  const disabled = node.effectiveState === 'locked'
+  const disabled = node.effectiveState === 'locked' || selectedMinutes == null || activeSession
 
   return (
     <View className='node-dossier paper-card'>
@@ -64,18 +71,18 @@ export function NodeDossier({ node, onBegin }: NodeDossierProps) {
 
       <Text className='field-label'>调遣时间棋子</Text>
       <View className='chip-row'>
-        {[15, 25, 45, 60].map((value) => (
-          <View key={value} className={`chip ${minutes === value ? 'chip--active' : ''}`} onClick={() => setMinutes(value)}>{value} 分钟</View>
+        {SESSION_MINUTES.map((value) => (
+          <Button key={value} className={`chip ${selectedMinutes === value ? 'chip--active' : ''}`} disabled={value > remaining || activeSession} onClick={() => setMinutes(value)}>{value} 分钟</Button>
         ))}
       </View>
       <Button
         className='primary-button dossier-action'
         disabled={disabled}
         onClick={() => {
-          if (!disabled) onBegin(minutes, action.mode)
+          if (!disabled && selectedMinutes != null) onBegin(selectedMinutes, action.mode)
         }}
       >
-        {disabled ? node.role === 'regional_capital' ? '需先攻克区域全部据点' : node.role === 'campaign_capital' ? '需先控制全部区域主城' : '前置道路尚未打通' : action.label}
+        {activeSession ? '请先处理当前行动' : selectedMinutes == null ? '今日兵力不足 · 明日再战' : disabled ? node.role === 'regional_capital' ? '需先攻克区域全部据点' : node.role === 'campaign_capital' ? '需先控制全部区域主城' : '前置道路尚未打通' : `${action.label} · ${selectedMinutes} 分钟`}
       </Button>
     </View>
   )

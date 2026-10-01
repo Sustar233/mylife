@@ -20,7 +20,7 @@ page,
     repeating-linear-gradient(0deg, rgba(63, 57, 47, .025) 0, rgba(63, 57, 47, .025) 1px, transparent 1px, transparent 6px),
     linear-gradient(145deg, #ddd2b7, #cfc09f 62%, #dacdb0);
   background-color: $field !important;
-  font-family: "FangSong", "STFangsong", "Songti SC", "Microsoft YaHei", serif;
+  font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
   font-size: 28px;
 }
 
@@ -57,6 +57,7 @@ button::after { border: 0; }
 }
 
 .page-subtitle { color: $muted; font-size: 24px; line-height: 1.65; }
+.page-title, .page-subtitle, .section-title { overflow-wrap: anywhere; }
 
 .paper-card {
   position: relative;
@@ -121,7 +122,15 @@ button::after { border: 0; }
 .secondary-button { border: 1px solid #8d7c5d; color: #383a35; background: linear-gradient(180deg, #eee3ca, #d9cbae); }
 .danger-button { border: 1px solid #685d54; color: #f2ead7; background: linear-gradient(180deg, #706a61, #524f49); }
 .primary-button[disabled]:not([disabled="false"]),
-.secondary-button[disabled]:not([disabled="false"]) { opacity: .42; }
+.secondary-button[disabled]:not([disabled="false"]),
+.danger-button[disabled]:not([disabled="false"]) { opacity: .55; }
+
+/* 仅 H5 原生控件使用键盘焦点样式，保持 WXSS 可编译。 */
+.primary-button:focus-visible, .secondary-button:focus-visible,
+.text-input:focus-within, .text-area:focus-within {
+  outline: 2px solid #40595c;
+  outline-offset: 3px;
+}
 
 .field-label { display: block; margin: 24px 0 10px; color: #5e5f58; font-size: 22px; font-weight: 800; letter-spacing: 1px; }
 .text-input, .text-area { width: 100%; border: 1px solid #9b8c70; border-radius: 2px; background: rgba(249, 243, 225, .72); color: #2d302c; font-size: 27px; box-shadow: inset 0 2px 7px rgba(66, 57, 44, .1); }
@@ -144,6 +153,15 @@ button::after { border: 0; }
 .weui-tabbar__item:nth-child(4)::before { content: "赏"; }
 .weui-tabbar__item:nth-child(5)::before { content: "务"; }
 .weui-tabbar__label { margin-top: 0 !important; font-family: "FangSong", "STFangsong", serif; }
+
+@media (max-width: 600px) {
+  .page-title { font-size: 28PX; }
+  .page-subtitle { font-size: 13PX; }
+  .eyebrow { font-size: 10PX; letter-spacing: 1PX; }
+  .weui-tabbar__item { min-height: 50PX; padding-top: 7PX; }
+  .weui-tabbar__item::before { font-size: 18PX; }
+  .weui-tabbar__label { font-size: 12PX !important; }
+}
 
 @media (min-width: 900px) {
   /* Taro converts design pixels to rem; enlarge the root only on desktop H5. */

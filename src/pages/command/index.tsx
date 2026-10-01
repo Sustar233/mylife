@@ -2,6 +2,7 @@ import { lazy, Suspense, useMemo, useState } from 'react'
 import { Button, Text, View } from '@tarojs/components'
 import { NpcGuide } from '../../components/NpcGuide'
 import { getDailyTroopStatus } from '../../domain/engine'
+import { affordableMinutes } from '../../domain/session-planning'
 import { getTodayAgenda, type AgendaItem } from '../../domain/agenda'
 import { getTroopAllocationAdvice } from '../../domain/troop-advice'
 import { actionForNode, STATE_LABELS } from '../../domain/presentation'
@@ -17,10 +18,11 @@ export default function CommandPage() {
   const { world, campaigns, activeCampaign, hydrated, now, actions } = useWorld()
   const [showCreator, setShowCreator] = useState(false)
   const [showMoreCommand, setShowMoreCommand] = useState(false)
+  const [showAllAgenda, setShowAllAgenda] = useState(false)
   const activeCampaigns = campaigns.filter((campaign) => campaign.status !== 'archived')
-  const troopStatus = getDailyTroopStatus(world, now, activeCampaign?.dailyTroops)
-  const troopAdvice = getTroopAllocationAdvice(world, activeCampaign, now)
-  const agenda = getTodayAgenda(world, campaigns, now)
+  const troopStatus = useMemo(() => getDailyTroopStatus(world, now, activeCampaign?.dailyTroops), [world, now, activeCampaign?.dailyTroops])
+  const troopAdvice = useMemo(() => getTroopAllocationAdvice(world, activeCampaign, now), [world, activeCampaign, now])
+  const agenda = useMemo(() => getTodayAgenda(world, campaigns, now), [world, campaigns, now])
   const activeSession = world.sessions.find((session) => session.status === 'active' || session.status === 'paused')
 
   const riskNodes = useMemo(() => activeCampaign?.nodes
@@ -30,6 +32,8 @@ export default function CommandPage() {
     .filter((node) => node.effectiveState === 'available' || node.effectiveState === 'sieging')
     .slice(0, 3) ?? [], [activeCampaign])
   const priorityNode = riskNodes[0] ?? attackNodes[0]
+  const priorityMinutes = affordableMinutes(troopStatus.remainingMinutes) ?? 15
+  const insufficientTroops = troopStatus.remainingMinutes < 15
 
   const startNode = (node: DerivedTerritoryNode, minutes = 25) => {
     const action = actionForNode(node)
@@ -42,6 +46,7 @@ export default function CommandPage() {
   }
 
   const startAgendaItem = (item: AgendaItem) => {
+    if (item.blockedReason) { showUserToast(item.blockedReason); return }
     if (item.kind === 'active') {
       const sessionId = item.id.replace('session:', '')
       openPage(`/subpackages/battle/index?sessionId=${sessionId}`)
@@ -60,13 +65,13 @@ export default function CommandPage() {
     return <View className='page-shell loading-screen'>正在展开战略地图…</View>
   }
 
-  if (campaigns.length === 0) {
+  if (activeCampaigns.length === 0) {
     return (
       <View className='page-shell command-page'>
         <View className='hero-banner hero-banner--empty'>
           <View className='hero-kicker'>KNOWLEDGE IS TERRITORY</View>
           <View className='hero-title'>让每一次学习，<Text>留下疆界。</Text></View>
-          <View className='hero-copy'>时间是你唯一的部队，成果是夺城的军令，复习决定领地能否长久。</View>
+          <View className='hero-copy'>{campaigns.length ? '已有战役均已归档，成果仍保留在战史中。建立新战线，开始下一段学习。' : '时间是你唯一的部队，成果是夺城的军令，复习决定领地能否长久。'}</View>
         </View>
         <Suspense fallback={<View className='paper-card'>正在调取战役模板…</View>}><CampaignCreator /></Suspense>
       </View>
@@ -95,12 +100,35 @@ export default function CommandPage() {
 
       {activeSession && (
         <View className='active-operation' onClick={() => openPage(`/subpackages/battle/index?sessionId=${activeSession.id}`)}>
-          <View className='operation-pulse' />
+          <View className={`operation-pulse ${activeSession.status === 'paused' ? 'operation-pulse--paused' : ''}`} />
           <View className='operation-copy'>
-            <Text className='operation-label'>前线行动仍在继续</Text>
+            <Text className='operation-label'>{activeSession.status === 'active' ? '前线行动仍在继续' : '有一场行动等待继续'}</Text>
             <Text className='operation-title'>{activeSession.status === 'active' ? '计时中' : '已暂停'} · 点击返回战场</Text>
           </View>
           <Text className='operation-arrow'>›</Text>
+        </View>
+      )}
+
+      {priorityNode ? (
+        <View className={`priority-order paper-card ${riskNodes.length ? 'priority-order--danger' : ''}`}>
+          <View className='order-ribbon'>{riskNodes.length ? '最高优先级 · 防守' : '最高优先级 · 进攻'}</View>
+          <View className='order-main'>
+            <View className='order-map-mark'>{priorityNode.kind === 'capital' ? '★' : '◆'}</View>
+            <View className='order-copy'>
+              <View className='order-meta'>{priorityNode.region} · {STATE_LABELS[priorityNode.effectiveState]}</View>
+              <View className='order-title'>{priorityNode.title}</View>
+              <View className='order-criteria'>{priorityNode.victoryCriteria}</View>
+            </View>
+          </View>
+          <Button className='primary-button order-button' disabled={Boolean(activeSession) || insufficientTroops} onClick={() => startNode(priorityNode, priorityMinutes)}>
+            {activeSession ? '先处理当前行动' : insufficientTroops ? '今日兵力不足 · 明日再战' : `${actionForNode(priorityNode).label} · ${priorityMinutes} 分钟`}
+          </Button>
+          <View className='order-hint'>{activeSession ? '点击上方行动卡，继续计时或提交已有成果。' : insufficientTroops ? '不足一枚 15 分钟时间棋子，可到战史回顾今日成果。' : '专注一枚时间棋子，用文字、链接或图片记录成果。'}</View>
+        </View>
+      ) : (
+        <View className='paper-card all-clear'>
+          <View className='all-clear-mark'>✓</View>
+          <View><View className='section-title'>今日全境无战事</View><View className='muted'>可以复习任一领地，或者查看世界地图调整下一条战线。</View></View>
         </View>
       )}
 
@@ -122,18 +150,19 @@ export default function CommandPage() {
         </View>
         {agenda.length === 0 ? <View className='empty-line'>今日没有到期复习，可自由练兵或休整。</View> : (
           <View className='agenda-list'>
-            {agenda.map((item, index) => (
+            {(showAllAgenda ? agenda : agenda.slice(0, 8)).map((item, index) => (
               <View key={item.id} className={`agenda-row agenda-row--${item.kind}`} onClick={() => startAgendaItem(item)}>
                 <View className='agenda-time'><Text>{String(index + 1).padStart(2, '0')}</Text><small>{item.minutes}m</small></View>
                 <View className='agenda-copy'>
                   <View className='agenda-title'>{item.title}<Text>{item.detail}</Text></View>
-                  <View className='agenda-meta'>{item.campaignTitle} · {item.mode === 'recover' ? '收复' : item.mode === 'review' ? '防守' : '进攻'}</View>
+                  <View className='agenda-meta'>{item.blockedReason ?? `${item.campaignTitle} · ${item.mode === 'recover' ? '收复' : item.mode === 'review' ? '防守' : '进攻'}`}</View>
                 </View>
                 <Text className='row-arrow'>›</Text>
               </View>
             ))}
           </View>
         )}
+        {agenda.length > 8 && <Button className='secondary-button agenda-more' onClick={() => setShowAllAgenda((value) => !value)}>{showAllAgenda ? '收起军务' : `查看全部 ${agenda.length} 项军务`}</Button>}
       </View>
 
       <View className='metric-grid'>
@@ -154,28 +183,6 @@ export default function CommandPage() {
           <View className='metric-foot'>{riskNodes.length ? '需要立即增援' : '全境补给稳定'}</View>
         </View>
       </View>
-
-      {priorityNode ? (
-        <View className={`priority-order paper-card ${riskNodes.length ? 'priority-order--danger' : ''}`}>
-          <View className='order-ribbon'>{riskNodes.length ? '最高优先级 · 防守' : '最高优先级 · 进攻'}</View>
-          <View className='order-main'>
-            <View className='order-map-mark'>{priorityNode.kind === 'capital' ? '★' : '◆'}</View>
-            <View className='order-copy'>
-              <View className='order-meta'>{priorityNode.region} · {STATE_LABELS[priorityNode.effectiveState]}</View>
-              <View className='order-title'>{priorityNode.title}</View>
-              <View className='order-criteria'>{priorityNode.victoryCriteria}</View>
-            </View>
-          </View>
-          <Button className='primary-button order-button' disabled={Boolean(activeSession)} onClick={() => startNode(priorityNode)}>
-            {activeSession ? '先处理当前行动' : `${actionForNode(priorityNode).label} · 25 分钟`}
-          </Button>
-        </View>
-      ) : (
-        <View className='paper-card all-clear'>
-          <View className='all-clear-mark'>✓</View>
-          <View><View className='section-title'>今日全境无战事</View><View className='muted'>可以复习任一领地，或者查看世界地图调整下一条战线。</View></View>
-        </View>
-      )}
 
       <View className='mobile-command-more' onClick={() => setShowMoreCommand((value) => !value)}>
         <View className='mobile-command-more-copy'>
