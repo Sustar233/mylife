@@ -11,8 +11,11 @@ import { BattleDraftBuffer } from '../src/state/battle-draft-buffer'
 import { getTodayAgenda, getReminderCount } from '../src/domain/agenda'
 import { referencedImages } from '../src/domain/image-references'
 import { getLearningAnalytics } from '../src/domain/analytics'
+import { clearNonGuideCampaigns } from '../src/domain/campaign-cleanup'
 import { autoArrangeCampaignMap, undoCampaignMapEdit } from '../src/domain/map-editor-engine'
 import type { WorldState } from '../src/domain/types'
+import { assaultProgress, ASSAULT_DEADLINE } from '../src/domain/assault'
+import { deriveCampaign, setTruce } from '../src/domain/engine'
 
 const NOW = '2026-10-01T04:00:00.000Z'
 const PHOTO = 'data:image/jpeg;base64,aGVsbG8='
@@ -30,7 +33,7 @@ class MemoryStorage implements StorageDriver {
 }
 function worldAt(at = NOW): WorldState {
   return createCampaignFromTemplate(createInitialWorldState(at), {
-    templateType: 'operating-system', title: '回归样例', goal: '完成学习', capitalCriteria: '完成总结', dailyTroops: 90, importedTemplateKeys: []
+    templateType: 'tour-guide', title: '回归样例', goal: '完成学习', capitalCriteria: '完成总结', dailyTroops: 90, importedTemplateKeys: []
   }, at)
 }
 function activeWorld(at = NOW): WorldState {
@@ -44,6 +47,38 @@ function mediaWorld(): WorldState {
   world.profile.customNpcCharacters = [{ id: 'npc_test', name: '测试', trait: '善学', description: '', image: PORTRAIT, createdAt: NOW }]
   return world
 }
+
+it('清理其他战役只移除关联学习数据并保留导游证进度', () => {
+  let world = createCampaignFromTemplate(worldAt(), {
+    templateType: 'tour-guide', title: '导游证备考', goal: '完成五科', capitalCriteria: '完成模拟',
+    dailyTroops: 90, importedTemplateKeys: []
+  }, NOW)
+  const [oldCampaign, guideCampaign] = world.campaigns
+  oldCampaign.templateType = 'language'
+  world.profile.activeCampaignId = oldCampaign.id
+  world.mapHistories = world.campaigns.map((campaign) => ({ campaignId: campaign.id, past: [], future: [] }))
+
+  for (const [campaign, sessionId] of [[oldCampaign, 'old-session'], [guideCampaign, 'guide-session']] as const) {
+    world = planSession(world, campaign.nodes[0].id, 25, 'attack', NOW, sessionId).world
+    world = startSession(world, sessionId, NOW)
+    world = settleSession(world, sessionId, {
+      outcome: 'achieved', evidence: [{ type: 'text', content: PROOF }], clientMutationId: sessionId
+    }, '2026-10-01T04:06:00.000Z')
+  }
+
+  const cleaned = clearNonGuideCampaigns(world)
+  assert.deepEqual(cleaned.campaigns, [world.campaigns[1]])
+  assert.equal(cleaned.profile.activeCampaignId, guideCampaign.id)
+  assert.deepEqual(cleaned.sessions.map((session) => session.id), ['guide-session'])
+  assert.deepEqual(cleaned.evidence.map((item) => item.sessionId), ['guide-session'])
+  assert.ok(cleaned.events.some((event) => event.campaignId === guideCampaign.id))
+  assert.ok(cleaned.events.every((event) => event.campaignId !== oldCampaign.id && event.sessionId !== 'old-session'))
+  assert.deepEqual(cleaned.mapHistories?.map((history) => history.campaignId), [guideCampaign.id])
+  assert.deepEqual(cleaned.rewards.transactions.map((item) => item.sessionId), ['guide-session'])
+  assert.equal(cleaned.rewards.coins, world.rewards.coins)
+  assert.equal(normalizeWorldState(cleaned).sessions.length, 1)
+  assert.equal(clearNonGuideCampaigns(cleaned), cleaned)
+})
 
 describe('存档故障与媒体存储', () => {
   it('空存储可以初始化，损坏主存档不会被当成新用户', () => {
@@ -322,12 +357,12 @@ describe('跨日计时、提醒和草稿', () => {
     assert.equal(getDailyTroopStatus(world, '2026-09-30T16:30:00.000Z').spentMinutes, 30)
   })
 
-  it('17 项到期军务都参与提醒计数，不受首页 8 项预览限制', () => {
+  it('16 项到期军务都参与提醒计数，不受首页 8 项预览限制', () => {
     const world = worldAt()
     world.campaigns[0].nodes.forEach((node) => { node.owner = 'self'; node.state = 'controlled'; node.review = { ...node.review, baseStability: 80, nextReviewAt: '2026-09-30T04:00:00.000Z' } })
     const campaigns = deriveWorld(world, NOW)
-    assert.equal(getTodayAgenda(world, campaigns, NOW).length, 17)
-    assert.equal(getReminderCount(world, campaigns, NOW), 17)
+    assert.equal(getTodayAgenda(world, campaigns, NOW).length, 16)
+    assert.equal(getReminderCount(world, campaigns, NOW), 16)
   })
 
   it('建议时长统一降为可负担棋子，不足 15 分钟时阻断', () => {
@@ -443,5 +478,69 @@ describe('恢复存档与草稿编辑隔离', () => {
     old.deactivate()
     old.flush()
     assert.deepEqual(restored.draft, EMPTY_BATTLE_DRAFT)
+  })
+})
+
+
+describe('导游证突击战役', () => {
+  it('支持每日 7 小时及 12 小时，存档校验和迁移保留配额', () => {
+    const world = worldAt()
+    world.campaigns[0].dailyTroops = 720
+    world.profile.dailyTroops = 420
+    assert.equal(normalizeWorldState(world).campaigns[0].dailyTroops, 720)
+    assert.equal(getDailyTroopStatus(world, NOW).remainingMinutes, 420)
+    delete world.campaigns[0].mode
+    world.campaigns[0].dailyTroops = 90
+    assert.equal(normalizeWorldState(world).campaigns[0].dailyTroops, 420)
+  })
+
+  it('突击守城 12 小时后到期，逾期 12 小时失地，休整不推迟', () => {
+    let world = activeWorld()
+    world = settleSession(world, 's1', { outcome: 'achieved', evidence: [{ type: 'text', content: PROOF }], clientMutationId: 'assault-review' }, NOW)
+    const campaign = world.campaigns[0]
+    const node = campaign.nodes[0]
+    assert.equal(Date.parse(node.review.nextReviewAt!) - Date.parse(NOW), 12 * 3600000)
+    const later = new Date(Date.parse(NOW) + 24 * 3600000).toISOString()
+    assert.equal(deriveCampaign(campaign, later).nodes[0].effectiveState, 'lost')
+    const rested = setTruce(world, NOW, later, NOW)
+    assert.equal(rested.campaigns[0].nodes[0].review.nextReviewAt, node.review.nextReviewAt)
+  })
+
+  it('立即撤回不产生档案纪事，也不删除其他战役事件', () => {
+    const world = activeWorld()
+    const result = abandonSession(world, 's1', new Date(Date.parse(NOW) + 5000).toISOString())
+    assert.equal(result.events.some((entry) => entry.sessionId === 's1'), false)
+    assert.ok(result.events.length > 0)
+    assert.equal(result.evidence.length, 0)
+    assert.equal(result.sessions[0].accumulatedSeconds, 5)
+  })
+
+  it('截止瞬间判失败，不能开始、续计时或补交成果', () => {
+    const world = activeWorld('2026-11-20T15:30:00.000Z')
+    const campaign = world.campaigns[0]
+    assert.equal(deriveCampaign(campaign, '2026-11-20T15:59:59.999Z').status, 'active')
+    assert.equal(deriveCampaign(campaign, ASSAULT_DEADLINE).status, 'failed')
+    assert.throws(() => planSession(world, campaign.nodes[0].id, 25, 'attack', ASSAULT_DEADLINE), /截止/)
+    const paused = pauseSession(world, 's1', '2026-11-20T15:59:00Z')
+    assert.throws(() => startSession(paused, 's1', ASSAULT_DEADLINE), /截止/)
+    assert.throws(() => settleSession(world, 's1', { outcome: 'achieved', evidence: [{ type: 'text', content: PROOF }], clientMutationId: 'late' }, ASSAULT_DEADLINE), /截止/)
+  })
+
+  it('全部节点完成但不足 70 小时不能凯旋，补足后跨截止仍保留成功', () => {
+    let world = activeWorld()
+    world.campaigns[0].nodes.forEach((node) => { node.owner = 'self'; node.state = 'controlled'; node.review.baseStability = 80 })
+    world.sessions[0].accumulatedSeconds = 4200 * 60 - 60
+    world.sessions[0].secondsByDay = { '2026-10-01': 4200 * 60 - 60 }
+    world = settleSession(world, 's1', { outcome: 'partial', evidence: [{ type: 'text', content: PROOF }], clientMutationId: 'short' }, NOW)
+    assert.equal(world.campaigns[0].status, 'active')
+    assert.equal(assaultProgress(world, world.campaigns[0], NOW).remainingMinutes, 1)
+    // 已结算计时在之前日期，留出当天的兵力进行最后一次复习。
+    world.sessions[0].secondsByDay = { '2026-09-30': 4200 * 60 - 60 }
+    const nodeId = world.campaigns[0].nodes[0].id
+    world = planSession(world, nodeId, 15, 'review', NOW, 'last').world
+    world = startSession(world, 'last', NOW)
+    world = settleSession(world, 'last', { outcome: 'achieved', evidence: [{ type: 'text', content: PROOF }], clientMutationId: 'done' }, new Date(Date.parse(NOW) + 60000).toISOString())
+    assert.equal(world.campaigns[0].status, 'victorious')
+    assert.equal(deriveCampaign(world.campaigns[0], ASSAULT_DEADLINE).status, 'victorious')
   })
 })

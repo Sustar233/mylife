@@ -21,13 +21,15 @@ function uniqueIds(items: Array<{ id: string }>, label: string): Set<string> {
 
 export function assertNormalizedWorld(world: WorldState): void {
   const profile = world.profile
-  requireValue(profile && text(profile.id) && text(profile.displayName) && text(profile.timezone) && finite(profile.dailyTroops, 15, 240), '指挥官资料不完整。')
+  requireValue(profile && text(profile.id) && text(profile.displayName) && text(profile.timezone) && finite(profile.dailyTroops, 15, 720), '指挥官资料不完整。')
   requireValue(world.campaigns.length <= 100 && world.sessions.length <= 50_000 && world.evidence.length <= 50_000 && world.events.length <= 100_000, '存档记录数量超过安全限制。')
   const campaignIds = uniqueIds(world.campaigns, '战役')
   const nodeCampaign = new Map<string, string>()
   for (const campaign of world.campaigns) {
+    requireValue(campaign.mode == null || oneOf(campaign.mode, ['standard', 'assault']), '战役模式无效。')
+    requireValue(campaign.completedAt == null || date(campaign.completedAt), '完成时间无效。')
     requireValue(text(campaign.title) && text(campaign.goal) && text(campaign.capitalCriteria) && date(campaign.createdAt), '战役资料不完整。')
-    requireValue(oneOf(campaign.status, ['active', 'archived', 'victorious']) && oneOf(campaign.templateType, ['operating-system', 'language', 'exam', 'stem']) && finite(campaign.dailyTroops, 15, 240), '战役状态或兵力无效。')
+    requireValue(oneOf(campaign.status, ['active', 'archived', 'victorious', 'failed']) && oneOf(campaign.templateType, ['tour-guide', 'operating-system', 'language', 'exam', 'stem']) && finite(campaign.dailyTroops, 15, 720), '战役状态或兵力无效。')
     requireValue(Array.isArray(campaign.nodes) && Array.isArray(campaign.edges) && campaign.nodes.length <= 100 && campaign.edges.length <= 10_000, '战役版图无效。')
     uniqueIds(campaign.nodes, '城池')
     uniqueIds(campaign.edges, '道路')

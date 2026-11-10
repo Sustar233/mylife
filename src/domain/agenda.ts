@@ -28,7 +28,7 @@ export function getTodayAgenda(
   const current = new Date(now).getTime()
   const dueSoonHours = world.profile.reminders?.dueSoonHours ?? 48
   const dueLimit = current + dueSoonHours * HOUR_MS
-  const activeCampaigns = campaigns.filter((campaign) => campaign.status !== 'archived')
+  const activeCampaigns = campaigns.filter((campaign) => campaign.status !== 'archived' && campaign.status !== 'failed')
   const items: AgendaItem[] = []
 
   world.sessions

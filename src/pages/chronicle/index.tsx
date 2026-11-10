@@ -27,8 +27,10 @@ export default function ChroniclePage() {
     const node = campaign?.nodes.find((candidate) => candidate.id === session?.nodeId)
     return { item, node, session }
   }), [world.evidence, world.sessions, campaigns, evidenceLimit])
-  const visibleEvents = world.events.slice(0, eventLimit)
-  const remainingEvents = Math.max(0, world.events.length - visibleEvents.length)
+  const cancelledIds = new Set(world.sessions.filter((session) => session.status === 'abandoned' && session.accumulatedSeconds < 60).map((session) => session.id))
+  const archiveEvents = world.events.filter((entry) => !entry.sessionId || !cancelledIds.has(entry.sessionId))
+  const visibleEvents = archiveEvents.slice(0, eventLimit)
+  const remainingEvents = Math.max(0, archiveEvents.length - visibleEvents.length)
   const remainingEvidence = Math.max(0, world.evidence.length - evidenceWithContext.length)
 
   if (!hydrated) return <View className='page-shell loading-screen'>正在整理战史…</View>
@@ -46,8 +48,8 @@ export default function ChroniclePage() {
 
       <NpcGuide
         role='historian'
-        line={world.events.length
-          ? `已录下 ${world.events.length} 则纪事、${world.evidence.length} 份成果。每一次用功，皆有迹可循。`
+        line={archiveEvents.length
+          ? `已录下 ${archiveEvents.length} 则纪事、${world.evidence.length} 份成果。每一次用功，皆有迹可循。`
           : '新卷已备，只待阁下写下第一场出征。'}
       />
 
@@ -92,7 +94,7 @@ export default function ChroniclePage() {
 
       <View className='chronicle-mobile-tabs'>
         <View className={archiveView === 'timeline' ? 'chronicle-mobile-tab chronicle-mobile-tab--active' : 'chronicle-mobile-tab'} onClick={() => setArchiveView('timeline')}>
-          <Text>领土大事记</Text><small>{world.events.length} 则纪事</small>
+          <Text>领土大事记</Text><small>{archiveEvents.length} 则纪事</small>
         </View>
         <View className={archiveView === 'evidence' ? 'chronicle-mobile-tab chronicle-mobile-tab--active' : 'chronicle-mobile-tab'} onClick={() => setArchiveView('evidence')}>
           <Text>成果档案</Text><small>{world.evidence.length} 份成果</small>
@@ -115,8 +117,8 @@ export default function ChroniclePage() {
               </View>
             ))}
           </View>
-          {world.events.length > 8 && (
-            <View className='chronicle-load-more' onClick={() => setEventLimit((current) => remainingEvents ? Math.min(world.events.length, current + 22) : 8)}>
+          {archiveEvents.length > 8 && (
+            <View className='chronicle-load-more' onClick={() => setEventLimit((current) => remainingEvents ? Math.min(archiveEvents.length, current + 22) : 8)}>
               {remainingEvents ? `查看较早纪事（${Math.min(22, remainingEvents)}）` : '收起较早纪事'}
             </View>
           )}

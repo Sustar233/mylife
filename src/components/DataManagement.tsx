@@ -23,6 +23,7 @@ export function DataManagement() {
   const [snapshots, setSnapshots] = useState<WorldSnapshot[]>([])
   const [busy, setBusy] = useState(false)
   const operationPending = useRef(false)
+  const nonGuideCampaignCount = world.campaigns.filter((campaign) => campaign.templateType !== 'tour-guide').length
 
   const refresh = async () => {
     setStorage(worldRepository.getStats())
@@ -116,6 +117,25 @@ export function DataManagement() {
     }
   }
 
+  const clearOtherCampaigns = async () => {
+    if (!beginOperation()) return
+    try {
+      const confirmed = await confirmAction({
+        title: '清理其他战役的学习记录？',
+        content: `将从当前存档移除 ${nonGuideCampaignCount} 场非导游证模板战役及其学习记录、成果和战史。清理前会保存一份可恢复的快照。`,
+        confirmText: '确认清理',
+        confirmColor: '#845b4d'
+      })
+      if (!confirmed) return
+      const result = actions.clearNonGuideRecords()
+      showUserToast(result.ok ? '其他战役已清理' : result.message, result.ok ? 'success' : 'none')
+    } catch (error) {
+      showUserToast(error instanceof Error ? error.message : '清理战役失败')
+    } finally {
+      finishOperation()
+    }
+  }
+
   return (
     <View className='paper-card data-management'>
       <View className='data-head'>
@@ -137,6 +157,9 @@ export function DataManagement() {
         <Button className='primary-button data-button' loading={busy} disabled={busy} onClick={exportBackup}>导出完整备份</Button>
         <Button className='secondary-button data-button' loading={busy} disabled={busy} onClick={importBackup}>从文件恢复</Button>
         <Button className='secondary-button data-button' loading={busy} disabled={busy} onClick={cleanup}>清理无用图片</Button>
+        {nonGuideCampaignCount > 0 && (
+          <Button className='secondary-button data-button' disabled={busy} onClick={clearOtherCampaigns}>清理非导游证记录</Button>
+        )}
       </View>
 
       <View className='snapshot-list'>

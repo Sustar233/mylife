@@ -84,7 +84,7 @@ export default function AffairsPage() {
               <View className='section-title'>{activeTruce ? '全境休整中' : '发布休整令'}</View>
               <View className='muted'>{activeTruce
                 ? `复习期限已顺延，休整将在 ${formatDateTime(activeTruce.endAt)} 结束。`
-                : '旅行、生病或集中冲刺其他任务时，可暂停衰减并顺延复习期限。'}</View>
+                : '常规战役可暂停衰减并顺延复习期限；突击战役的防守与考试期限不顺延。'}</View>
             </View>
             {!activeTruce && (
               <View className='chip-row truce-actions'>
@@ -92,6 +92,14 @@ export default function AffairsPage() {
               </View>
             )}
           </View>
+
+          {activeCampaign && <View className='paper-card'>
+            <View className='section-title'>每日学习兵力 · 当前 {activeCampaign.dailyTroops} 分钟</View>
+            <View className='chip-row'>{[120, 240, 420, 540, 720].map((minutes) => <Button key={minutes} className='chip' onClick={() => {
+              const result = actions.applyMapOperation((current) => ({ ...current, profile: { ...current.profile, dailyTroops: minutes }, campaigns: current.campaigns.map((campaign) => campaign.id === activeCampaign.id ? { ...campaign, dailyTroops: minutes } : campaign) }))
+              if (!result.ok) showUserToast(result.message)
+            }}>{minutes / 60} 小时{activeCampaign.dailyTroops === minutes ? ' ✓' : ''}</Button>)}</View>
+          </View>}
 
           <View className='paper-card archive-card'>
             <View className='archive-copy'>

@@ -1,6 +1,6 @@
-import type { EdgeKind, MapPosition, NodeKind, TemplateType } from './types'
+import type { CampaignCreationInput, EdgeKind, MapPosition, NodeKind, TemplateType } from './types'
 
-export interface TemplateNodeDefinition {
+interface TemplateNodeDefinition {
   key: string
   region: string
   title: string
@@ -11,162 +11,95 @@ export interface TemplateNodeDefinition {
   position: MapPosition
 }
 
-export interface TemplateEdgeDefinition {
-  from: string
-  to: string
-  kind?: EdgeKind
-}
-
-export interface CampaignTemplateDefinition {
-  type: TemplateType
+interface CampaignTemplateDefinition {
+  type: CampaignCreationInput['templateType']
   name: string
   icon: string
   tagline: string
   defaultTitle: string
   defaultGoal: string
   defaultCapitalCriteria: string
-  defaultScoreTarget?: number
   nodes: TemplateNodeDefinition[]
-  edges: TemplateEdgeDefinition[]
+  edges: { from: string; to: string; kind?: EdgeKind }[]
 }
 
-const operatingSystem: CampaignTemplateDefinition = {
-  type: 'operating-system',
-  name: '操作系统八章',
-  icon: '机',
-  tagline: '按教材单元顺序推进，默认实测地图',
-  defaultTitle: '操作系统八章战图',
-  defaultGoal: '按照教材单元顺序完成八章学习、复习与阶段验收',
-  defaultCapitalCriteria: '完成八章学习与一次全书复盘，提交可验证的总结或模拟记录',
+const capitalCriteria = '完成两张限时笔试模拟卷和一次英语模拟面试，记录成绩与改进项'
+
+export const TOUR_GUIDE_TEMPLATE: CampaignTemplateDefinition = {
+  type: 'tour-guide',
+  name: '导游证',
+  icon: '导',
+  tagline: '全导 · 法规 · 地导 · 业务 · 英语面试',
+  defaultTitle: '导游证备考战图',
+  defaultGoal: '完成四门笔试科目与英语面试的学习、练习和模拟验收',
+  defaultCapitalCriteria: capitalCriteria,
   nodes: [
-    { key: 'unit-1', region: '第一章·概论', title: '第一章研读营', description: '完成第一章的整体通读并记录进度。', kind: 'city', estimatedMinutes: 120, victoryCriteria: '完成第一章一次完整学习并提交章节进度记录', position: { x: 10, y: 20 } },
-    { key: 'unit-2', region: '第二章·运行机制', title: '第二章研读营', description: '完成第二章的整体通读并记录进度。', kind: 'city', estimatedMinutes: 120, victoryCriteria: '完成第二章一次完整学习并提交章节进度记录', position: { x: 26, y: 12 } },
-    { key: 'unit-3', region: '第三章·进程线程', title: '第三章研读营', description: '完成第三章的整体通读并记录进度。', kind: 'fortress', estimatedMinutes: 150, victoryCriteria: '完成第三章一次完整学习并提交章节进度记录', position: { x: 42, y: 25 } },
-    { key: 'unit-4', region: '第四章·调度', title: '第四章研读营', description: '完成第四章的整体通读并记录进度。', kind: 'city', estimatedMinutes: 120, victoryCriteria: '完成第四章一次完整学习并提交章节进度记录', position: { x: 58, y: 11 } },
-    { key: 'unit-5', region: '第五章·存储', title: '第五章研读营', description: '完成第五章的整体通读并记录进度。', kind: 'fortress', estimatedMinutes: 150, victoryCriteria: '完成第五章一次完整学习并提交章节进度记录', position: { x: 75, y: 22 } },
-    { key: 'unit-6', region: '第六章·文件', title: '第六章研读营', description: '完成第六章的整体通读并记录进度。', kind: 'city', estimatedMinutes: 120, victoryCriteria: '完成第六章一次完整学习并提交章节进度记录', position: { x: 88, y: 42 } },
-    { key: 'unit-7', region: '第七章·设备', title: '第七章研读营', description: '完成第七章的整体通读并记录进度。', kind: 'fortress', estimatedMinutes: 120, victoryCriteria: '完成第七章一次完整学习并提交章节进度记录', position: { x: 76, y: 62 } },
-    { key: 'unit-8', region: '第八章·同步死锁', title: '第八章研读营', description: '完成第八章的整体通读并记录进度。', kind: 'fortress', estimatedMinutes: 150, victoryCriteria: '完成第八章一次完整学习并提交章节进度记录', position: { x: 58, y: 78 } },
-    { key: 'capital', region: '全书总复习', title: '操作系统总复习王都', description: '完成八个单元后的全书综合验收。', kind: 'capital', estimatedMinutes: 240, victoryCriteria: '完成八章学习与一次全书复盘，提交可验证的总结或模拟记录', position: { x: 34, y: 88 } }
+    {
+      key: 'national-study', region: '全导', title: '全导考纲研读', kind: 'city',
+      description: '梳理全国导游基础知识的考纲范围。',
+      estimatedMinutes: 120, victoryCriteria: '整理一份全导考纲提纲', position: { x: 18, y: 28 }
+    },
+    {
+      key: 'national-practice', region: '全导', title: '全导专项练习', kind: 'fortress',
+      description: '通过专项题检查全国导游基础知识的掌握情况。',
+      estimatedMinutes: 90, victoryCriteria: '完成一组全导专项题并订正', position: { x: 24, y: 36 }
+    },
+    {
+      key: 'law-study', region: '法规', title: '法规考纲研读', kind: 'city',
+      description: '梳理政策与法律法规的考纲范围。',
+      estimatedMinutes: 120, victoryCriteria: '整理一份法规考纲提纲', position: { x: 44, y: 14 }
+    },
+    {
+      key: 'law-practice', region: '法规', title: '法规专项练习', kind: 'fortress',
+      description: '用专项题和案例练习巩固法规知识。',
+      estimatedMinutes: 90, victoryCriteria: '完成一组法规专项题并记录错因', position: { x: 50, y: 22 }
+    },
+    {
+      key: 'local-study', region: '地导', title: '地导考纲研读', kind: 'city',
+      description: '梳理地方导游基础知识的考纲范围。',
+      estimatedMinutes: 120, victoryCriteria: '整理一份地导考纲提纲', position: { x: 73, y: 28 }
+    },
+    {
+      key: 'local-practice', region: '地导', title: '地导专项练习', kind: 'fortress',
+      description: '通过专项题巩固各地概况和旅游资源。',
+      estimatedMinutes: 90, victoryCriteria: '完成一组地导专项题并订正', position: { x: 79, y: 36 }
+    },
+    {
+      key: 'service-study', region: '业务', title: '业务考纲研读', kind: 'city',
+      description: '梳理导游业务的服务流程和技能要求。',
+      estimatedMinutes: 120, victoryCriteria: '整理一份导游服务流程提纲', position: { x: 74, y: 64 }
+    },
+    {
+      key: 'service-practice', region: '业务', title: '业务情景练习', kind: 'fortress',
+      description: '练习带团服务、安全与应变处置。',
+      estimatedMinutes: 90, victoryCriteria: '完成一组业务情景题并复盘处置步骤', position: { x: 80, y: 72 }
+    },
+    {
+      key: 'english-commentary', region: '英语面试', title: '英语景点讲解', kind: 'city',
+      description: '按报考地现场考试要求准备英语景点讲解。',
+      estimatedMinutes: 120, victoryCriteria: '完成一份英语导游词并进行一次口头讲解', position: { x: 17, y: 64 }
+    },
+    {
+      key: 'english-practice', region: '英语面试', title: '英语面试演练', kind: 'fortress',
+      description: '练习英语问答、情景应对与口译。',
+      estimatedMinutes: 90, victoryCriteria: '完成一次英语模拟面试并记录改进项', position: { x: 23, y: 72 }
+    },
+    {
+      key: 'capital', region: '综合验收', title: '导游证综合验收', kind: 'capital',
+      description: '完成五个分支后的笔试与英语面试综合模拟。',
+      estimatedMinutes: 210, victoryCriteria: capitalCriteria, position: { x: 51, y: 82 }
+    }
   ],
   edges: [
-    { from: 'unit-1', to: 'unit-2' },
-    { from: 'unit-2', to: 'unit-3' },
-    { from: 'unit-3', to: 'unit-4' },
-    { from: 'unit-4', to: 'unit-5' },
-    { from: 'unit-5', to: 'unit-6' },
-    { from: 'unit-6', to: 'unit-7' },
-    { from: 'unit-7', to: 'unit-8' },
-    { from: 'unit-8', to: 'capital' }
+    { from: 'national-study', to: 'national-practice' },
+    { from: 'law-study', to: 'law-practice' },
+    { from: 'local-study', to: 'local-practice' },
+    { from: 'service-study', to: 'service-practice' },
+    { from: 'english-commentary', to: 'english-practice' }
   ]
 }
 
-const language: CampaignTemplateDefinition = {
-  type: 'language',
-  name: '语言远征',
-  icon: '舶',
-  tagline: '词汇、输入与表达彼此支援',
-  defaultTitle: '英语联邦',
-  defaultGoal: '能够在真实场景中独立理解并表达观点',
-  defaultCapitalCriteria: '完成一次 10 分钟自由表达，并提交文字或录音说明',
-  nodes: [
-    { key: 'word-camp', region: '词汇边境', title: '核心词营', description: '建立第一批高频词汇补给。', kind: 'city', estimatedMinutes: 120, victoryCriteria: '主动使用 30 个核心词完成一段表达', position: { x: 11, y: 20 } },
-    { key: 'sound-port', region: '听力海岸', title: '辨音港', description: '熟悉连读、弱读和常见语音变化。', kind: 'city', estimatedMinutes: 90, victoryCriteria: '听写一段 60 秒材料并说明主要语音现象', position: { x: 11, y: 69 } },
-    { key: 'reading-town', region: '阅读平原', title: '短文镇', description: '用语境理解句子和段落。', kind: 'city', estimatedMinutes: 150, victoryCriteria: '不查词完成一篇短文摘要', position: { x: 31, y: 13 } },
-    { key: 'listening-fort', region: '听力海岸', title: '精听堡', description: '从声音中稳定提取关键信息。', kind: 'fortress', estimatedMinutes: 180, victoryCriteria: '精听一段 3 分钟材料并复述核心信息', position: { x: 31, y: 73 } },
-    { key: 'journal-city', region: '写作丘陵', title: '日记城', description: '把词汇转化为日常书面输出。', kind: 'city', estimatedMinutes: 160, victoryCriteria: '连续完成 3 篇不少于 120 词的短文', position: { x: 51, y: 15 } },
-    { key: 'retell-pass', region: '口语山脉', title: '复述关', description: '将输入转化为自己的语言。', kind: 'fortress', estimatedMinutes: 150, victoryCriteria: '脱稿复述一段学习材料并记录问题', position: { x: 51, y: 67 } },
-    { key: 'longread-province', region: '阅读平原', title: '长文省', description: '保持长篇阅读中的理解和注意力。', kind: 'city', estimatedMinutes: 240, victoryCriteria: '完成一篇长文结构图和观点摘要', position: { x: 68, y: 18 } },
-    { key: 'dialogue-fort', region: '口语山脉', title: '对话要塞', description: '在互动中即时组织语言。', kind: 'fortress', estimatedMinutes: 240, victoryCriteria: '完成一次 10 分钟真实或模拟对话并复盘', position: { x: 69, y: 68 } },
-    { key: 'essay-city', region: '写作丘陵', title: '议论文城', description: '形成结构清晰的完整观点。', kind: 'fortress', estimatedMinutes: 300, victoryCriteria: '完成一篇结构完整的议论文并自行修订', position: { x: 82, y: 28 } },
-    { key: 'capital', region: '联合王都', title: '独立表达王都', description: '综合听说读写能力的最终验收。', kind: 'capital', estimatedMinutes: 360, victoryCriteria: '完成一次 10 分钟自由表达，并提交文字或录音说明', position: { x: 90, y: 52 } }
-  ],
-  edges: [
-    { from: 'word-camp', to: 'reading-town' },
-    { from: 'sound-port', to: 'listening-fort' },
-    { from: 'word-camp', to: 'journal-city' },
-    { from: 'reading-town', to: 'journal-city' },
-    { from: 'word-camp', to: 'retell-pass' },
-    { from: 'listening-fort', to: 'retell-pass' },
-    { from: 'reading-town', to: 'longread-province' },
-    { from: 'retell-pass', to: 'dialogue-fort' },
-    { from: 'journal-city', to: 'essay-city' },
-    { from: 'longread-province', to: 'essay-city' },
-    { from: 'dialogue-fort', to: 'capital' },
-    { from: 'essay-city', to: 'capital' }
-  ]
-}
-
-const exam: CampaignTemplateDefinition = {
-  type: 'exam',
-  name: '证书攻坚',
-  icon: '章',
-  tagline: '考纲覆盖、错题清理与模拟验收',
-  defaultTitle: '消防中控考区',
-  defaultGoal: '系统覆盖考纲并稳定通过模拟考试',
-  defaultCapitalCriteria: '完成一套完整模拟卷并达到目标分数',
-  defaultScoreTarget: 80,
-  nodes: [
-    { key: 'regulation', region: '理论战区', title: '法规城', description: '掌握法规、职责与基础概念。', kind: 'city', estimatedMinutes: 180, victoryCriteria: '完成法规章节复盘并达到自定正确率', position: { x: 10, y: 18 } },
-    { key: 'equipment', region: '设施战区', title: '设施镇', description: '识别设备、系统和关键参数。', kind: 'city', estimatedMinutes: 210, victoryCriteria: '完成设施分类图并解释主要功能', position: { x: 10, y: 70 } },
-    { key: 'safety', region: '理论战区', title: '安全关', description: '掌握安全规范与责任边界。', kind: 'fortress', estimatedMinutes: 150, victoryCriteria: '完成章节练习并整理所有错因', position: { x: 31, y: 18 } },
-    { key: 'operation', region: '实操战区', title: '操作堡', description: '熟悉关键操作流程。', kind: 'fortress', estimatedMinutes: 240, victoryCriteria: '不看资料复述完整操作步骤', position: { x: 31, y: 70 } },
-    { key: 'chapter-drill', region: '训练战区', title: '章节演武场', description: '通过题目检验考纲覆盖。', kind: 'city', estimatedMinutes: 240, victoryCriteria: '完成章节题并记录正确率与薄弱项', position: { x: 48, y: 35 } },
-    { key: 'scenario', region: '实操战区', title: '场景要塞', description: '在综合场景中选择正确处置方案。', kind: 'fortress', estimatedMinutes: 210, victoryCriteria: '完成 5 个综合场景并解释处置依据', position: { x: 51, y: 75 } },
-    { key: 'error-book', region: '训练战区', title: '错题清剿区', description: '消灭反复出现的认知漏洞。', kind: 'city', estimatedMinutes: 180, victoryCriteria: '二刷错题并确认同类题不再出错', position: { x: 65, y: 26 } },
-    { key: 'mock-one', region: '模拟战区', title: '第一次大会战', description: '进行完整限时模拟。', kind: 'fortress', estimatedMinutes: 150, victoryCriteria: '完成一套限时模拟卷并记录分数', position: { x: 69, y: 65 } },
-    { key: 'weakness', region: '模拟战区', title: '薄弱点肃清', description: '针对模拟暴露的问题补强。', kind: 'fortress', estimatedMinutes: 180, victoryCriteria: '完成薄弱知识清单并逐项复测', position: { x: 82, y: 30 } },
-    { key: 'capital', region: '认证王都', title: '合格线王都', description: '以完整模拟考试验证应试能力。', kind: 'capital', estimatedMinutes: 150, victoryCriteria: '完成一套完整模拟卷并达到目标分数', position: { x: 91, y: 56 } }
-  ],
-  edges: [
-    { from: 'regulation', to: 'safety' },
-    { from: 'equipment', to: 'operation' },
-    { from: 'regulation', to: 'chapter-drill' },
-    { from: 'equipment', to: 'chapter-drill' },
-    { from: 'operation', to: 'scenario' },
-    { from: 'safety', to: 'scenario' },
-    { from: 'chapter-drill', to: 'error-book' },
-    { from: 'error-book', to: 'mock-one' },
-    { from: 'scenario', to: 'mock-one' },
-    { from: 'mock-one', to: 'weakness' },
-    { from: 'weakness', to: 'capital' }
-  ]
-}
-
-const stem: CampaignTemplateDefinition = {
-  type: 'stem',
-  name: '数理与编程',
-  icon: '算',
-  tagline: '概念、例题、练习与应用逐层推进',
-  defaultTitle: '算法诸国',
-  defaultGoal: '建立可解释、可练习、可应用的知识体系',
-  defaultCapitalCriteria: '独立完成一个综合项目或一套综合题并复盘',
-  nodes: [
-    { key: 'foundation', region: '基础边境', title: '基础概念城', description: '明确术语、对象和基本约束。', kind: 'city', estimatedMinutes: 150, victoryCriteria: '不用资料解释核心术语并举例', position: { x: 10, y: 22 } },
-    { key: 'notation', region: '基础边境', title: '符号与工具港', description: '掌握必要的符号、语言或工具。', kind: 'city', estimatedMinutes: 120, victoryCriteria: '完成一页符号或工具速查表', position: { x: 12, y: 72 } },
-    { key: 'core-concept', region: '概念腹地', title: '核心原理堡', description: '理解原理以及成立条件。', kind: 'fortress', estimatedMinutes: 210, victoryCriteria: '独立推导或解释核心原理与边界', position: { x: 34, y: 34 } },
-    { key: 'worked-example', region: '范例平原', title: '典型例题城', description: '观察完整解题或实现过程。', kind: 'city', estimatedMinutes: 150, victoryCriteria: '遮住答案后重做两个典型例题', position: { x: 49, y: 18 } },
-    { key: 'basic-practice', region: '训练战区', title: '基础练兵场', description: '稳定完成基本题型。', kind: 'city', estimatedMinutes: 240, victoryCriteria: '独立完成一组基础练习并订正', position: { x: 50, y: 70 } },
-    { key: 'advanced-practice', region: '训练战区', title: '进阶要塞', description: '处理变式、组合与边界情况。', kind: 'fortress', estimatedMinutes: 300, victoryCriteria: '完成三道进阶题并解释关键选择', position: { x: 68, y: 35 } },
-    { key: 'error-review', region: '修整战区', title: '错因清剿城', description: '识别错误背后的知识缺口。', kind: 'city', estimatedMinutes: 150, victoryCriteria: '建立错因清单并完成同类复测', position: { x: 68, y: 76 } },
-    { key: 'application', region: '应用前线', title: '真实应用关', description: '把知识用于项目或综合题。', kind: 'fortress', estimatedMinutes: 360, victoryCriteria: '完成一个可运行实现或完整综合题', position: { x: 83, y: 23 } },
-    { key: 'capital', region: '知识王都', title: '综合能力王都', description: '通过综合成果确认真正掌握。', kind: 'capital', estimatedMinutes: 480, victoryCriteria: '独立完成一个综合项目或一套综合题并复盘', position: { x: 91, y: 57 } }
-  ],
-  edges: [
-    { from: 'foundation', to: 'core-concept' },
-    { from: 'notation', to: 'core-concept' },
-    { from: 'core-concept', to: 'worked-example' },
-    { from: 'core-concept', to: 'basic-practice' },
-    { from: 'worked-example', to: 'advanced-practice' },
-    { from: 'basic-practice', to: 'advanced-practice' },
-    { from: 'advanced-practice', to: 'error-review' },
-    { from: 'advanced-practice', to: 'application' },
-    { from: 'error-review', to: 'capital' },
-    { from: 'application', to: 'capital' }
-  ]
-}
-
-export const CAMPAIGN_TEMPLATES: CampaignTemplateDefinition[] = [operatingSystem, language, exam, stem]
+export const CAMPAIGN_TEMPLATES = [TOUR_GUIDE_TEMPLATE]
 
 export function getTemplate(type: TemplateType): CampaignTemplateDefinition {
   const template = CAMPAIGN_TEMPLATES.find((item) => item.type === type)

@@ -1,3 +1,6 @@
+import { getCampaignRegions } from '../../domain/regions'
+import { STATE_LABELS } from '../../domain/presentation'
+import { AssaultBrief } from '../../components/AssaultBrief'
 import { lazy, Suspense, useEffect, useMemo, useState } from 'react'
 import { Text, View } from '@tarojs/components'
 import { NodeDossier } from '../../components/NodeDossier'
@@ -74,6 +77,8 @@ export default function MapPage() {
         </View>
       </View>
 
+      <AssaultBrief />
+
       <View className='campaign-tabs'>
         {visibleCampaigns.map((campaign) => (
           <View
@@ -102,6 +107,20 @@ export default function MapPage() {
             ? `往「${selectedNode.title}」的驿道尚未贯通，请先完成区域内前置据点。`
             : `已进入「${selectedRegion}」。当前选中「${selectedNode?.title ?? selectedRegion}」。`}
       />
+
+      {!selectedRegion && <View className='paper-card study-route'>
+        <View className='section-title'>学习路线 · 点击科目展开任务</View>
+        <View className='muted'>各科可并行推进：考纲研读 → 专项练习 → 科目验收；全部科目通过后进入综合验收。地图色块表示学习科目，不是地理位置。</View>
+        {getCampaignRegions(activeCampaign).map((region, index) => {
+          const next = region.nodes.find((node) => ['lost', 'contested'].includes(node.effectiveState))
+            ?? region.nodes.find((node) => ['available', 'sieging'].includes(node.effectiveState))
+          const names: Record<string, string> = { '全导': '全国导游基础知识', '地导': '地方导游基础知识', '法规': '政策与法律法规', '业务': '导游业务', '英语面试': '英语面试', '综合验收': '综合模拟验收' }
+          return <View key={region.id} className='study-route-row' onClick={() => { setSelectedRegion(region.name); setSelectedNodeId(next?.id ?? region.capital.id) }}>
+            <View>{index + 1}. {names[region.name] ?? region.name} · 已掌握 {region.controlledNodeCount}/{region.nodes.length}</View>
+            <View className='muted'>{next ? `下一步：${next.title} · ${STATE_LABELS[next.effectiveState]}` : region.controlled ? '已完成，按提醒复习' : '待前置科目验收通过'} ›</View>
+          </View>
+        })}
+      </View>}
 
       <TerritoryMap
         campaign={activeCampaign}

@@ -122,7 +122,7 @@ export default function BattlePage() {
         <View className='result-seal'>撤</View>
         <View className='eyebrow'>WITHDRAWN · 行动撤回</View>
         <View className='page-title'>部队已经撤回</View>
-        <View className='page-subtitle'>{node.title} · 已记录投入 {Math.ceil(session.accumulatedSeconds / 60)} 分钟，但未提交战果。</View>
+        <View className='page-subtitle'>{node.title} · {session.accumulatedSeconds < 60 ? '行动已取消，未生成成果档案。' : `已记录投入 ${Math.ceil(session.accumulatedSeconds / 60)} 分钟，但未提交战果。`}</View>
         <Button className='primary-button' onClick={() => openTab('/pages/command/index')}>返回司令部</Button>
       </View>
     )

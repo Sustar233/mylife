@@ -1,5 +1,7 @@
-import { lazy, Suspense, useMemo, useState } from 'react'
+import { AssaultBrief } from '../../components/AssaultBrief'
+import { useMemo, useState } from 'react'
 import { Button, Text, View } from '@tarojs/components'
+import { CampaignCreator } from '../../components/CampaignCreator'
 import { NpcGuide } from '../../components/NpcGuide'
 import { getDailyTroopStatus } from '../../domain/engine'
 import { affordableMinutes } from '../../domain/session-planning'
@@ -11,8 +13,6 @@ import { formatCompactDate } from '../../domain/utils'
 import { openPage, openTab, showUserToast } from '../../services/taro-ui'
 import { useWorld } from '../../state/world-context'
 import './index.scss'
-
-const CampaignCreator = lazy(() => import('../../components/CampaignCreator').then((module) => ({ default: module.CampaignCreator })))
 
 export default function CommandPage() {
   const { world, campaigns, activeCampaign, hydrated, now, actions } = useWorld()
@@ -73,7 +73,7 @@ export default function CommandPage() {
           <View className='hero-title'>让每一次学习，<Text>留下疆界。</Text></View>
           <View className='hero-copy'>{campaigns.length ? '已有战役均已归档，成果仍保留在战史中。建立新战线，开始下一段学习。' : '时间是你唯一的部队，成果是夺城的军令，复习决定领地能否长久。'}</View>
         </View>
-        <Suspense fallback={<View className='paper-card'>正在调取战役模板…</View>}><CampaignCreator /></Suspense>
+        <CampaignCreator />
       </View>
     )
   }
@@ -88,6 +88,8 @@ export default function CommandPage() {
         </View>
         <View className='commander-seal'>知<small>域</small></View>
       </View>
+
+      <AssaultBrief />
 
       <NpcGuide
         role='strategist'
@@ -263,13 +265,13 @@ export default function CommandPage() {
                 onClick={() => actions.selectCampaign(campaign.id)}
               >
                 <View className='campaign-mini-name'>{campaign.title}</View>
-                <View className='campaign-mini-meta'>{campaign.progressPercent}% · {campaign.status === 'victorious' ? '已凯旋' : '推进中'}</View>
+                <View className='campaign-mini-meta'>{campaign.progressPercent}% · {campaign.status === 'failed' ? '已失败' : campaign.status === 'victorious' ? '已凯旋' : '推进中'}</View>
               </View>
             ))}
           </View>
         </View>
 
-        {showCreator && <Suspense fallback={<View className='paper-card'>正在调取战役模板…</View>}><CampaignCreator onCreated={() => setShowCreator(false)} /></Suspense>}
+        {showCreator && <CampaignCreator onCreated={() => setShowCreator(false)} />}
       </View>
     </View>
   )

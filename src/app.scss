@@ -174,3 +174,5 @@ button::after { border: 0; }
 @media (prefers-reduced-motion: reduce) {
   .operation-pulse { animation-duration: .01ms !important; animation-iteration-count: 1 !important; }
 }
+
+.assault-brief { margin: 20px 0; line-height: 1.8; border-left: 5px solid #8b5146; }

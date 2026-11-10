@@ -1,5 +1,5 @@
-export type TemplateType = 'operating-system' | 'language' | 'exam' | 'stem'
-export type CampaignStatus = 'active' | 'archived' | 'victorious'
+export type TemplateType = 'tour-guide' | 'operating-system' | 'language' | 'exam' | 'stem'
+export type CampaignStatus = 'active' | 'archived' | 'victorious' | 'failed'
 export type NodeState = 'locked' | 'available' | 'sieging' | 'controlled' | 'contested' | 'lost'
 export type TerritoryOwner = 'self' | 'enemy' | 'rebel'
 export type OriginOwner = 'self' | 'enemy'
@@ -89,6 +89,8 @@ export interface DependencyEdge {
 }
 
 export interface Campaign {
+  mode?: 'standard' | 'assault'
+  completedAt?: string
   id: string
   title: string
   templateType: TemplateType
@@ -273,7 +275,8 @@ export interface DerivedCampaign extends Omit<Campaign, 'nodes'> {
 }
 
 export interface CampaignCreationInput {
-  templateType: TemplateType
+  mode?: 'standard' | 'assault'
+  templateType: 'tour-guide'
   title: string
   goal: string
   capitalCriteria: string

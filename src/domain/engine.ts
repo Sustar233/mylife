@@ -1,3 +1,4 @@
+import { isAssault, assaultProgress, assertCampaignOpen, ASSAULT_DEADLINE } from './assault'
 import { getTemplate } from './templates'
 import { upgradeCampaignHierarchy } from './regions'
 import {
@@ -61,7 +62,7 @@ export function createInitialWorldState(now = new Date().toISOString()): WorldSt
         id: makeId('event'),
         type: 'campaign_created',
         title: '知识疆域待命',
-        detail: '选择一套战役模板，建立你的第一片知识前线。',
+        detail: '使用导游证战役模板，建立你的第一片知识前线。',
         occurredAt: now
       }
     ]
@@ -77,7 +78,7 @@ export function createCampaignFromTemplate(
   input: CampaignCreationInput,
   now = new Date().toISOString()
 ): WorldState {
-  const activeCount = world.campaigns.filter((campaign) => campaign.status === 'active').length
+  const activeCount = world.campaigns.filter((campaign) => deriveCampaign(campaign, now).status === 'active').length
   if (activeCount >= MAX_ACTIVE_CAMPAIGNS) throw new Error('同时最多进行 3 场战役，请先归档一场。')
   if (!input.title.trim() || !input.goal.trim() || !input.capitalCriteria.trim()) {
     throw new Error('战役名称、最终目标和首都标准不能为空。')
@@ -124,7 +125,8 @@ export function createCampaignFromTemplate(
     goal: input.goal.trim(),
     capitalCriteria: input.capitalCriteria.trim(),
     capitalScoreTarget: input.capitalScoreTarget,
-    dailyTroops: clamp(input.dailyTroops, 15, 240),
+    dailyTroops: clamp(input.dailyTroops, 15, 720),
+    mode: input.mode ?? 'assault',
     status: 'active',
     createdAt: now,
     nodes,
@@ -152,18 +154,18 @@ export function createCampaignFromTemplate(
   }
 }
 
-function effectiveStability(node: TerritoryNode, now: string): { stability: number; overdue: boolean } {
+function effectiveStability(node: TerritoryNode, now: string, assault = false): { stability: number; overdue: boolean } {
   if (node.owner !== 'self' || !node.review.nextReviewAt) {
     return { stability: node.review.baseStability, overdue: false }
   }
 
   const due = new Date(node.review.nextReviewAt).getTime()
   const current = new Date(now).getTime()
-  const graceEnd = due + REVIEW_GRACE_HOURS * HOUR_MS
+  const graceEnd = due + (assault ? 0 : REVIEW_GRACE_HOURS) * HOUR_MS
   if (current <= graceEnd) return { stability: node.review.baseStability, overdue: false }
 
-  const fullWeeksAfterGrace = Math.floor((current - graceEnd) / (7 * DAY_MS))
-  const penalty = 10 * (1 + fullWeeksAfterGrace)
+  const fullWeeksAfterGrace = Math.floor((current - graceEnd) / (assault ? 6 * HOUR_MS : 7 * DAY_MS))
+  const penalty = (assault ? 15 : 10) * (1 + fullWeeksAfterGrace)
   return {
     stability: clamp(node.review.baseStability - penalty, 0, 100),
     overdue: true
@@ -174,7 +176,7 @@ export function deriveCampaign(campaign: Campaign, now = new Date().toISOString(
   const derived = new Map<string, DerivedTerritoryNode>()
 
   campaign.nodes.forEach((node) => {
-    const review = effectiveStability(node, now)
+    const review = effectiveStability(node, now, isAssault(campaign))
     let effectiveOwner = node.owner
     let effectiveState = node.state
 
@@ -237,7 +239,8 @@ export function deriveCampaign(campaign: Campaign, now = new Date().toISOString(
   const controlledStrategicCount = strategicNodes.filter((node) => node.effectiveOwner === 'self').length
   const progressPercent = Math.round((controlledStrategicCount / Math.max(1, strategicNodes.length)) * 100)
 
-  return { ...campaign, nodes, controlledCount, contestedCount, progressPercent, controlledRegionCount, regionCount }
+  const status = campaign.status === 'archived' ? 'archived' : isAssault(campaign) ? campaign.completedAt ? 'victorious' : Date.parse(now) >= Date.parse(ASSAULT_DEADLINE) ? 'failed' : 'active' : campaign.status
+  return { ...campaign, status, nodes, controlledCount, contestedCount, progressPercent, controlledRegionCount, regionCount }
 }
 
 export function deriveWorld(world: WorldState, now = new Date().toISOString()): DerivedCampaign[] {
@@ -305,6 +308,7 @@ export function planSession(
   sessionId = makeId('session')
 ): { world: WorldState; session: StudySession } {
   const { campaign } = findNode(world, nodeId)
+  assertCampaignOpen(campaign, scheduledAt)
   const normalizedMinutes = [15, 25, 45, 60].includes(plannedMinutes) ? plannedMinutes : 25
   const troops = getDailyTroopStatus(world, scheduledAt, campaign.dailyTroops)
   if (troops.remainingMinutes < normalizedMinutes) {
@@ -358,6 +362,7 @@ export function startSession(world: WorldState, sessionId: string, now = new Dat
     throw new Error('已有一支部队正在出征，请先暂停或结算。')
   }
   if (!['planned', 'paused'].includes(target.status)) return world
+  assertCampaignOpen(findNode(world, target.nodeId).campaign, now)
 
   const sessions = world.sessions.map((session) => session.id === sessionId
     ? {
@@ -408,6 +413,7 @@ export function abandonSession(world: WorldState, sessionId: string, now = new D
   if (!target || target.status === 'settled' || target.status === 'abandoned') return world
   return {
     ...world,
+    events: world.events.filter((entry) => entry.sessionId !== sessionId || getSessionActiveSeconds(target, now) >= 60),
     sessions: world.sessions.map((session) => session.id === sessionId
       ? {
           ...checkpointSession(session, world.profile.timezone, now),
@@ -506,6 +512,7 @@ export function settleSession(
     throw new Error('验收分数必须是有效的非负数字。')
   }
   const { campaign, node } = findNode(world, target.nodeId)
+  assertCampaignOpen(campaign, now)
   const derivedNode = deriveCampaign(campaign, now).nodes.find((item) => item.id === node.id)!
   if (node.kind === 'capital' && input.outcome === 'achieved' && node.scoreTarget != null) {
     if (input.score == null || input.score < node.scoreTarget) {
@@ -588,6 +595,11 @@ export function settleSession(
     eventDetail = `本次复习尚未巩固，${updatedNode.review.intervalDays} 天后重新整队。`
   }
 
+  if (isAssault(campaign) && updatedNode.review.nextReviewAt) {
+    updatedNode = { ...updatedNode, review: { ...updatedNode.review, nextReviewAt: new Date(Date.parse(now) + 12 * HOUR_MS).toISOString() } }
+    eventDetail += ' 突击模式：12 小时后需防守，到期后每 6 小时损失 15 稳定度。'
+  }
+
   const updatedSession: StudySession = {
     ...checkpointSession(target, world.profile.timezone, now),
     status: 'settled',
@@ -607,7 +619,7 @@ export function settleSession(
   nextWorld = {
     ...nextWorld,
     campaigns: nextWorld.campaigns.map((item) => {
-      if (item.id !== campaign.id || node.kind !== 'capital' || input.outcome !== 'achieved') return item
+      if (isAssault(item) || item.id !== campaign.id || node.kind !== 'capital' || input.outcome !== 'achieved') return item
       return { ...item, status: 'victorious' }
     }),
     sessions: nextWorld.sessions.map((session) => session.id === sessionId ? updatedSession : session),
@@ -624,6 +636,10 @@ export function settleSession(
       }),
       ...nextWorld.events
     ]
+  }
+  if (isAssault(campaign)) {
+    nextWorld.campaigns = nextWorld.campaigns.map((item) => item.id === campaign.id && item.nodes.every((n) => n.owner === 'self') && assaultProgress(nextWorld, item, now).seconds >= 4200 * 60
+      ? { ...item, status: 'victorious', completedAt: item.completedAt ?? now } : item)
   }
   return creditSessionReward(nextWorld, sessionId, sessionReward, `${node.title}行动军饷`, now)
 }
@@ -643,7 +659,7 @@ export function setTruce(
 
   const campaigns = world.campaigns.map((campaign) => ({
     ...campaign,
-    nodes: campaign.nodes.map((node) => node.review.nextReviewAt
+    nodes: campaign.nodes.map((node) => !isAssault(campaign) && node.review.nextReviewAt
       ? {
           ...node,
           review: {
@@ -662,7 +678,7 @@ export function setTruce(
       event({
         type: 'truce_started',
         title: '全境进入休整',
-        detail: `所有复习期限顺延 ${Math.ceil(duration / DAY_MS)} 天。`,
+        detail: `常规战役复习期限顺延 ${Math.ceil(duration / DAY_MS)} 天，突击战役仍按考试计划推进。`,
         occurredAt: now
       }),
       ...world.events
@@ -677,6 +693,10 @@ type UpgradeableWorldState = Omit<WorldState, 'version' | 'rewards'> & {
 
 function upgradeCampaignData(input: Campaign): Campaign {
   const campaign = upgradeCampaignHierarchy(input)
+  if (campaign.templateType === 'tour-guide' && campaign.mode == null) {
+    campaign.mode = 'assault'
+    campaign.dailyTroops = Math.max(420, campaign.dailyTroops)
+  }
   return {
     ...campaign,
     nodes: campaign.nodes.map((node) => ({
@@ -764,7 +784,7 @@ export function getDailyTroopStatus(
 ): DailyTroopStatus {
   const timezone = world.profile.timezone || 'Asia/Hong_Kong'
   const dayKey = localDayKey(now, timezone)
-  const quotaMinutes = clamp(quotaOverride ?? world.profile.dailyTroops ?? 90, 15, 240)
+  const quotaMinutes = clamp(quotaOverride ?? world.profile.dailyTroops ?? 90, 15, 720)
   const spentSeconds = world.sessions.reduce((total, session) => session.status === 'planned'
     ? total : total + (sessionSecondsByDay(session, timezone, now)[dayKey] ?? 0), 0)
   const spentMinutes = Math.ceil(spentSeconds / 60)

@@ -49,6 +49,7 @@ import type {
 } from '../domain/types'
 import type { BattleDraft } from '../domain/types'
 import { saveBattleDraft } from '../domain/battle-draft'
+import { clearNonGuideCampaigns } from '../domain/campaign-cleanup'
 import { affordableMinutes } from '../domain/session-planning'
 import { makeId } from '../domain/utils'
 import { showUserToast } from '../services/taro-ui'
@@ -66,6 +67,7 @@ interface WorldActions {
   archive(campaignId: string): void
   applyMapOperation(operation: (current: WorldState, timestamp: string) => WorldState): MapEditResult
   replaceWorld(nextWorld: WorldState, snapshotLabel?: string): void
+  clearNonGuideRecords(): MapEditResult
   restoreSnapshot(snapshotId: string): MapEditResult
   updateReminders(patch: Partial<ReminderSettings>): void
   createReward(input: RewardItemInput): MapEditResult
@@ -259,6 +261,12 @@ export function WorldProvider({ children }: PropsWithChildren) {
     commitWorld(normalized, true, true)
   }, [commitWorld])
 
+  const clearNonGuideRecords = useCallback(() => runWorldOperation((current) => {
+    const next = clearNonGuideCampaigns(current)
+    if (next !== current) worldRepository.createSnapshot(current, '清理其他战役前')
+    return next
+  }, true), [runWorldOperation])
+
   const restoreSnapshot = useCallback((snapshotId: string): MapEditResult => {
     const restored = worldRepository.restoreSnapshot(snapshotId)
     if (!restored) return { ok: false, message: '没有找到这份自动快照。' }
@@ -349,6 +357,7 @@ export function WorldProvider({ children }: PropsWithChildren) {
     archive,
     applyMapOperation,
     replaceWorld,
+    clearNonGuideRecords,
     restoreSnapshot,
     updateReminders,
     createReward,
@@ -372,6 +381,7 @@ export function WorldProvider({ children }: PropsWithChildren) {
     archive,
     applyMapOperation,
     replaceWorld,
+    clearNonGuideRecords,
     restoreSnapshot,
     updateReminders,
     createReward,

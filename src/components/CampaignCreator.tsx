@@ -1,7 +1,6 @@
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { Button, Input, Text, View } from '@tarojs/components'
-import { CAMPAIGN_TEMPLATES, getTemplate } from '../domain/templates'
-import type { TemplateType } from '../domain/types'
+import { TOUR_GUIDE_TEMPLATE } from '../domain/templates'
 import { showUserToast } from '../services/taro-ui'
 import { useWorld } from '../state/world-context'
 import './CampaignCreator.scss'
@@ -12,24 +11,13 @@ interface CampaignCreatorProps {
 
 export function CampaignCreator({ onCreated }: CampaignCreatorProps) {
   const { actions } = useWorld()
-  const [templateType, setTemplateType] = useState<TemplateType>('operating-system')
-  const template = useMemo(() => getTemplate(templateType), [templateType])
+  const template = TOUR_GUIDE_TEMPLATE
   const [title, setTitle] = useState(template.defaultTitle)
   const [goal, setGoal] = useState(template.defaultGoal)
   const [capitalCriteria, setCapitalCriteria] = useState(template.defaultCapitalCriteria)
-  const [scoreTarget, setScoreTarget] = useState(template.defaultScoreTarget ?? 80)
-  const [dailyTroops, setDailyTroops] = useState(90)
+  const [dailyTroops, setDailyTroops] = useState(420)
+  const [mode, setMode] = useState<'standard' | 'assault'>('assault')
   const [importedKeys, setImportedKeys] = useState<string[]>([])
-
-  const selectTemplate = (type: TemplateType) => {
-    const next = getTemplate(type)
-    setTemplateType(type)
-    setTitle(next.defaultTitle)
-    setGoal(next.defaultGoal)
-    setCapitalCriteria(next.defaultCapitalCriteria)
-    setScoreTarget(next.defaultScoreTarget ?? 80)
-    setImportedKeys([])
-  }
 
   const toggleImported = (key: string) => {
     setImportedKeys((current) => current.includes(key)
@@ -43,12 +31,12 @@ export function CampaignCreator({ onCreated }: CampaignCreatorProps) {
       return
     }
     const result = actions.createCampaign({
-      templateType,
+      templateType: template.type,
       title,
       goal,
       capitalCriteria,
-      capitalScoreTarget: templateType === 'exam' ? scoreTarget : undefined,
       dailyTroops,
+      mode,
       importedTemplateKeys: importedKeys
     })
     if (!result.ok) {
@@ -69,20 +57,13 @@ export function CampaignCreator({ onCreated }: CampaignCreatorProps) {
         <Text className='creator-step'>约 3 分钟</Text>
       </View>
 
-      <Text className='field-label'>选择战役模板</Text>
-      <View className='template-grid'>
-        {CAMPAIGN_TEMPLATES.map((item) => (
-          <View
-            key={item.type}
-            className={`template-card ${templateType === item.type ? 'template-card--active' : ''}`}
-            onClick={() => selectTemplate(item.type)}
-          >
-            {item.type === 'operating-system' && <Text className='template-default-badge'>默认</Text>}
-            <Text className='template-seal'>{item.icon}</Text>
-            <View className='template-name'>{item.name}</View>
-            <View className='template-tagline'>{item.tagline}</View>
-          </View>
-        ))}
+      <Text className='field-label'>战役模板</Text>
+      <View className='template-card'>
+        <Text className='template-seal'>{template.icon}</Text>
+        <View>
+          <View className='template-name'>{template.name}</View>
+          <View className='template-tagline'>{template.tagline}</View>
+        </View>
       </View>
 
       <Text className='field-label'>敌对势力名称</Text>
@@ -94,21 +75,15 @@ export function CampaignCreator({ onCreated }: CampaignCreatorProps) {
       <Text className='field-label'>首都胜利标准</Text>
       <Input className='text-input' value={capitalCriteria} maxlength={100} onInput={(event) => setCapitalCriteria(event.detail.value)} />
 
-      {templateType === 'exam' && (
-        <>
-          <Text className='field-label'>目标分数</Text>
-          <Input
-            className='text-input score-input'
-            type='number'
-            value={`${scoreTarget}`}
-            onInput={(event) => setScoreTarget(Math.max(1, Number(event.detail.value) || 0))}
-          />
-        </>
-      )}
-
+      <Text className='field-label'>战役模式</Text>
+      <View className='chip-row'>
+        <Button onClick={() => { setMode('assault'); setDailyTroops(420) }}>突击模式{mode === 'assault' ? ' ✓' : ''}</Button>
+        <Button onClick={() => setMode('standard')}>常规模式{mode === 'standard' ? ' ✓' : ''}</Button>
+      </View>
+      {mode === 'assault' && <View className='import-hint'>11 月 21 日 00:00 截止 · 每日目标 7 小时 · 共 70 小时且全部节点验收通过。复习到期后每 6 小时侵蚀 15 稳定度。</View>}
       <Text className='field-label'>每日恢复兵力</Text>
       <View className='chip-row'>
-        {[30, 60, 90, 120].map((minutes) => (
+        {[60, 120, 240, 420, 540, 720].map((minutes) => (
           <View
             key={minutes}
             className={`chip ${dailyTroops === minutes ? 'chip--active' : ''}`}

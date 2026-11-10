@@ -33,12 +33,12 @@ const NOW = '2026-08-19T08:00:00.000Z'
 
 function createWorld(): WorldState {
   const input: CampaignCreationInput = {
-    templateType: 'stem',
-    title: '算法诸国',
-    goal: '掌握算法',
-    capitalCriteria: '完成综合项目',
+    templateType: 'tour-guide',
+    title: '导游证备考战图',
+    goal: '完成五个备考模块',
+    capitalCriteria: '完成综合模拟',
     dailyTroops: 90,
-    importedTemplateKeys: ['foundation']
+    importedTemplateKeys: ['national-study']
   }
   return createCampaignFromTemplate(createInitialWorldState(NOW), input, NOW)
 }
@@ -103,20 +103,20 @@ describe('今日作战与军情分析', () => {
       ...world,
       campaigns: world.campaigns.map((campaign) => ({
         ...campaign,
-        nodes: campaign.nodes.map((node) => node.templateKey === 'foundation'
+        nodes: campaign.nodes.map((node) => node.templateKey === 'national-study'
           ? { ...node, review: { ...node.review, nextReviewAt: addDays(NOW, 1) } }
           : node)
       }))
     }
     const campaigns = deriveWorld(world, NOW)
     const agenda = getTodayAgenda(world, campaigns, NOW)
-    assert.ok(agenda.some((item) => item.title === '基础概念城' && item.mode === 'review'))
+    assert.ok(agenda.some((item) => item.title === '全导考纲研读' && item.mode === 'review'))
     assert.equal(getReminderCount(world, campaigns, NOW), 1)
   })
 
   it('已有进行中行动时不会再推荐无法启动的新前线', () => {
     const world = createWorld()
-    const node = world.campaigns[0].nodes.find((item) => item.templateKey === 'foundation')!
+    const node = world.campaigns[0].nodes.find((item) => item.templateKey === 'national-study')!
     const activeWorld: WorldState = {
       ...world,
       sessions: [{
@@ -179,6 +179,19 @@ describe('今日作战与军情分析', () => {
 })
 
 describe('存档迁移', () => {
+  it('新建导游证战役和已停用模板的历史战役均可读档', () => {
+    const world = createWorld()
+    assert.equal(normalizeWorldState(world).campaigns[0].templateType, 'tour-guide')
+
+    const campaign = world.campaigns[0]
+    for (const templateType of ['operating-system', 'language', 'exam', 'stem'] as const) {
+      const legacyWorld = { ...world, campaigns: [{ ...campaign, templateType }] }
+      const restored = normalizeWorldState(legacyWorld).campaigns[0]
+      assert.equal(restored.templateType, templateType)
+      assert.deepEqual(restored.nodes.map((node) => node.id), campaign.nodes.map((node) => node.id))
+    }
+  })
+
   it('图片清理保护旧快照的成果与头像，不把文字链接视为文件', () => {
     const current = createWorld()
     const snapshot = createWorld()
