@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Canvas, Text, View } from '@tarojs/components'
 import type { CommonEvent } from '@tarojs/components/types/common'
 import Taro from '@tarojs/taro'
 import { getCampaignRegions, type CampaignRegion } from '../domain/regions'
-import { createTerritoryCells, THEATRE_OUTLINE, type TerritoryCell } from '../domain/territory-geometry'
+import { createTerritoryCellSelector, THEATRE_OUTLINE, type TerritoryCell } from '../domain/territory-geometry'
 import type { DerivedCampaign, DerivedTerritoryNode, MapPosition } from '../domain/types'
 import { ownerClass, STATE_LABELS } from '../domain/presentation'
 import './TerritoryMap.scss'
@@ -144,6 +144,7 @@ function campaignDrawingRevision(campaign: DerivedCampaign): string {
     node.effectiveOwner,
     node.effectiveState,
     node.effectiveStability,
+    node.supplyCut,
     node.position.x,
     node.position.y,
     node.tacticalPosition?.x ?? '',
@@ -165,12 +166,13 @@ export function TerritoryMap({
   const [zoom, setZoom] = useState(1)
   const [pan, setPan] = useState<MapPosition>({ x: 0, y: 0 })
   const [hideControlled, setHideControlled] = useState(false)
-  const [touchStart, setTouchStart] = useState<MapPosition | undefined>()
-  const drawingRevision = campaignDrawingRevision(campaign)
+  const touchStart = useRef<MapPosition | undefined>()
+  const drawingRevision = useMemo(() => campaignDrawingRevision(campaign), [campaign])
   const regions = useMemo(() => getCampaignRegions(campaign), [campaign.id, drawingRevision])
   const focusedRegion = regions.find((region) => region.name === selectedRegion)
   const overviewRegions = useMemo(() => regions.filter((region) => region.finalRegion || !hideControlled || !region.controlled), [hideControlled, regions])
-  const overviewCells = useMemo(() => createTerritoryCells(overviewRegions.map((region) => ({ id: region.id, position: region.position }))), [overviewRegions])
+  const selectOverviewCells = useMemo(() => createTerritoryCellSelector(), [])
+  const overviewCells = useMemo(() => selectOverviewCells(overviewRegions), [overviewRegions, selectOverviewCells])
   const renderedOverviewCells = useMemo(() => overviewCells.map((cell) => ({
     ...cell,
     points: cell.points.map((point) => transformMapPoint(point, zoom, pan)),
@@ -195,14 +197,15 @@ export function TerritoryMap({
   useEffect(() => {
     setZoom(1)
     setPan({ x: 0, y: 0 })
-    setTouchStart(undefined)
+    touchStart.current = undefined
     Taro.pageScrollTo({ scrollTop: 0, duration: 160 }).catch(() => undefined)
-  }, [viewKey])
+  }, [campaign.id, viewKey])
 
   useEffect(() => {
+    let cancelled = false
     const timer = setTimeout(() => {
       Taro.createSelectorQuery().select(`#${canvasId}`).boundingClientRect((rect) => {
-        if (!rect || Array.isArray(rect)) return
+        if (cancelled || !rect || Array.isArray(rect)) return
         const context = Taro.createCanvasContext(canvasId)
         drawChartBase(context, rect.width, rect.height)
 
@@ -269,7 +272,7 @@ export function TerritoryMap({
         context.draw()
       }).exec()
     }, 60)
-    return () => clearTimeout(timer)
+    return () => { cancelled = true; clearTimeout(timer) }
   }, [canvasId, cellsById, drawingRevision, focusedRegion, localPositions, mode, overviewRegionById, overviewRegionByNodeId, renderedOutline, renderedOverviewCells, selectedNodeId])
 
   const ordinaryRegions = regions.filter((region) => !region.finalRegion)
@@ -284,19 +287,20 @@ export function TerritoryMap({
   const resetView = () => { setZoom(1); setPan({ x: 0, y: 0 }) }
   const beginPan = (event: CommonEvent) => {
     const touch = (event as MapTouchEvent).touches?.[0]
-    if (touch) setTouchStart({ x: touch.pageX, y: touch.pageY })
+    touchStart.current = touch ? { x: touch.pageX, y: touch.pageY } : undefined
   }
   const finishPan = (event: CommonEvent) => {
     const touch = (event as MapTouchEvent).changedTouches?.[0]
-    if (!touch || !touchStart || zoom <= 1) { setTouchStart(undefined); return }
-    const dx = touch.pageX - touchStart.x
-    const dy = touch.pageY - touchStart.y
+    const start = touchStart.current
+    touchStart.current = undefined
+    if (!touch || !start || zoom <= 1) return
+    const dx = touch.pageX - start.x
+    const dy = touch.pageY - start.y
     if (Math.abs(dx) + Math.abs(dy) > 18) movePan(dx / 7, dy / 7)
-    setTouchStart(undefined)
   }
 
   return (
-    <View className={`territory-map ${focusedRegion ? 'territory-map--region' : ''}`} onTouchStart={beginPan} onTouchEnd={finishPan}>
+    <View className={`territory-map ${focusedRegion ? 'territory-map--region' : ''}`} onTouchStart={beginPan} onTouchEnd={finishPan} onTouchCancel={() => { touchStart.current = undefined }}>
       <Canvas key={canvasId} id={canvasId} canvasId={canvasId} className='territory-canvas' />
 
       <View className='map-command-bar'>

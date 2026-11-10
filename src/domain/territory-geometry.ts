@@ -7,6 +7,11 @@ export interface TerritoryCell {
   points: MapPosition[]
 }
 
+interface TerritorySite {
+  id: string
+  position: MapPosition
+}
+
 // A deliberately irregular coastline keeps the atlas from reading as a board or chart.
 export const THEATRE_OUTLINE: MapPosition[] = [
   { x: 5, y: 26 },
@@ -85,7 +90,7 @@ export function polygonCentroid(points: MapPosition[]): MapPosition {
   }
 }
 
-export function createTerritoryCells(nodes: Array<{ id: string; position: MapPosition }>): TerritoryCell[] {
+export function createTerritoryCells(nodes: TerritorySite[]): TerritoryCell[] {
   return nodes.map((node) => {
     const points = nodes.reduce<MapPosition[]>((polygon, rival) => {
       if (rival.id === node.id) return polygon
@@ -101,13 +106,30 @@ export function createTerritoryCells(nodes: Array<{ id: string; position: MapPos
   })
 }
 
+// Keep one layout per map: ownership, labels and stability do not change borders.
+export function createTerritoryCellSelector(): (nodes: TerritorySite[]) => TerritoryCell[] {
+  let previousSites: TerritorySite[] | undefined
+  let previousCells: TerritoryCell[] = []
+  return (nodes) => {
+    if (previousSites?.length === nodes.length && nodes.every((node, index) => {
+      const previous = previousSites![index]
+      return previous.id === node.id && previous.position.x === node.position.x && previous.position.y === node.position.y
+    })) return previousCells
+
+    previousSites = nodes.map((node) => ({ id: node.id, position: { ...node.position } }))
+    previousCells = createTerritoryCells(previousSites)
+    return previousCells
+  }
+}
+
 export function isPointInPolygon(point: MapPosition, polygon: MapPosition[]): boolean {
   const onBoundary = polygon.some((start, index) => {
     const end = polygon[(index + 1) % polygon.length]
+    const squaredLength = (end.x - start.x) ** 2 + (end.y - start.y) ** 2
+    if (squaredLength === 0) return Math.abs(point.x - start.x) <= 1e-6 && Math.abs(point.y - start.y) <= 1e-6
     const cross = (point.y - start.y) * (end.x - start.x) - (point.x - start.x) * (end.y - start.y)
     if (Math.abs(cross) > 1e-6) return false
     const dot = (point.x - start.x) * (end.x - start.x) + (point.y - start.y) * (end.y - start.y)
-    const squaredLength = (end.x - start.x) ** 2 + (end.y - start.y) ** 2
     return dot >= -1e-6 && dot <= squaredLength + 1e-6
   })
   if (onBoundary) return true

@@ -18,7 +18,8 @@
 .snapshot-row text, .snapshot-row small { display: block; }
 .snapshot-row text { color: #343934; font-size: 18px; font-weight: 900; }
 .snapshot-row small { margin-top: 3px; color: #7b766a; font-size: 14px; }
-.snapshot-action { flex: 0 0 auto; color: #4a6769 !important; font-size: 16px !important; }
+.snapshot-action { flex: 0 0 auto; margin: 0; padding: 8px 12px; background: transparent; line-height: 1.5; color: #4a6769 !important; font-size: 16px !important; }
+.snapshot-action[disabled] { opacity: .45; }
 .storage-warning { margin-top: 12px; padding: 10px 12px; border-left: 4px solid #8b724c; background: rgba(139, 114, 76, .1); color: #705c3d; font-size: 16px; }
 
 @media (max-width: 600px) {

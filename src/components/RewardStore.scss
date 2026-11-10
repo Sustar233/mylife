@@ -11,7 +11,7 @@
 .reward-subtitle { color: #3e4f4c; font-size: 19px; font-weight: 900; }
 .reward-voucher-section, .reward-ledger { margin-top: 20px; }
 .reward-voucher-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; margin-top: 9px; }
-.reward-voucher { display: flex; align-items: center; gap: 10px; min-width: 0; padding: 11px; border: 1px dashed #8a795a; background: rgba(242, 232, 208, .7); }
+.reward-voucher { display: flex; align-items: center; gap: 10px; width: 100%; min-width: 0; margin: 0; padding: 11px; border: 1px dashed #8a795a; border-radius: 0; background: rgba(242, 232, 208, .7); line-height: 1.5; text-align: left; }
 .reward-voucher-seal { display: flex; flex: 0 0 38px; align-items: center; justify-content: center; width: 38px; height: 38px; color: #f1e6ce; background: #736b58; font-family: "STKaiti", "KaiTi", serif; font-size: 21px; font-weight: 900; }
 .reward-voucher > view:nth-child(2) { min-width: 0; flex: 1; }
 .reward-voucher text, .reward-voucher small { display: block; }
@@ -29,7 +29,9 @@
 .reward-item { display: flex; min-width: 0; min-height: 225px; flex-direction: column; padding: 14px; border: 1px solid #998a6f; border-top: 4px solid #667977; background: rgba(244, 236, 216, .64); }
 .reward-item-top { display: flex; align-items: center; justify-content: space-between; }
 .reward-item-icon { display: flex; align-items: center; justify-content: center; width: 42px; height: 42px; border: 1px solid #667775; color: #f0e8d4; background: #607270; font-family: "STKaiti", "KaiTi", serif; font-size: 23px; font-weight: 900; }
-.reward-item-remove { color: #817668; font-size: 13px; text-decoration: underline; }
+.reward-item-remove { margin: 0; padding: 8px; color: #817668; background: transparent; font-size: 13px; line-height: 1.5; text-decoration: underline; }
+.reward-voucher[disabled], .reward-item-remove[disabled] { opacity: .5; }
+.reward-empty { margin-top: 12px; padding: 15px; border: 1px dashed #a39780; color: #737066; font-size: 17px; line-height: 1.6; }
 .reward-item-title { margin-top: 11px; color: #303630; font-size: 21px; font-weight: 900; }
 .reward-item-description { flex: 1; margin-top: 5px; color: #737066; font-size: 14px; line-height: 1.5; }
 .reward-item-foot { display: flex; align-items: flex-end; justify-content: space-between; gap: 8px; margin-top: 12px; }

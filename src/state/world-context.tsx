@@ -75,7 +75,8 @@ interface WorldActions {
   assignNpc(duty: NpcDuty, characterId: NpcCharacterId): MapEditResult
   createNpc(input: NpcCharacterInput): MapEditResult
   deleteNpc(characterId: NpcCharacterId): MapEditResult
-  saveDraft(sessionId: string, draft: BattleDraft): MapEditResult
+  saveDraft(sessionId: string, draft: BattleDraft, expectedRevision: number): MapEditResult
+  isCurrentWorldRevision(revision: number): boolean
 }
 
 export type MapEditResult = { ok: true } | { ok: false; message: string }
@@ -86,6 +87,7 @@ export type ExpeditionStartResult =
 
 interface WorldContextValue {
   world: WorldState
+  worldRevision: number
   campaigns: DerivedCampaign[]
   activeCampaign?: DerivedCampaign
   hydrated: boolean
@@ -96,18 +98,25 @@ interface WorldContextValue {
 const WorldContext = createContext<WorldContextValue | undefined>(undefined)
 
 export function WorldProvider({ children }: PropsWithChildren) {
-  const [world, setWorld] = useState<WorldState>(() => createInitialWorldState())
+  const [{ world, worldRevision }, setWorldState] = useState(() => ({ world: createInitialWorldState(), worldRevision: 0 }))
   const worldRef = useRef(world)
+  const worldRevisionRef = useRef(0)
   const [hydrated, setHydrated] = useState(false)
   const [loadError, setLoadError] = useState('')
   const [now, setNow] = useState(() => new Date().toISOString())
 
-  const commitWorld = useCallback((next: WorldState, persist = true) => {
+  const commitWorld = useCallback((next: WorldState, persist = true, invalidateDrafts = false) => {
     if (next === worldRef.current) return
     if (persist) worldRepository.save(next)
+    // 持久化成功后、通知 React 前同步作废旧回调；失败时仍保留原草稿版本。
+    if (invalidateDrafts) {
+      worldRevisionRef.current += 1
+    }
     worldRef.current = next
-    setWorld(next)
+    setWorldState({ world: next, worldRevision: worldRevisionRef.current })
   }, [])
+
+  const isCurrentWorldRevision = useCallback((revision: number) => revision === worldRevisionRef.current, [])
 
   const checkpointWorld = useCallback(() => {
     const timestamp = new Date().toISOString()
@@ -149,12 +158,12 @@ export function WorldProvider({ children }: PropsWithChildren) {
     }
   }, [checkpointWorld])
 
-  const runWorldOperation = useCallback((operation: (current: WorldState, timestamp: string) => WorldState): MapEditResult => {
+  const runWorldOperation = useCallback((operation: (current: WorldState, timestamp: string) => WorldState, invalidateDrafts = false): MapEditResult => {
     const timestamp = new Date().toISOString()
     try {
       const next = operation(worldRef.current, timestamp)
       setNow(timestamp)
-      commitWorld(next)
+      commitWorld(next, true, invalidateDrafts)
       return { ok: true }
     } catch (error) {
       return { ok: false, message: error instanceof Error ? error.message : '操作失败，请稍后重试。' }
@@ -247,7 +256,7 @@ export function WorldProvider({ children }: PropsWithChildren) {
     const normalized = pauseInterruptedSessions(normalizeWorldState(nextWorld))
     worldRepository.createSnapshot(worldRef.current, snapshotLabel)
     setNow(new Date().toISOString())
-    commitWorld(normalized)
+    commitWorld(normalized, true, true)
   }, [commitWorld])
 
   const restoreSnapshot = useCallback((snapshotId: string): MapEditResult => {
@@ -256,7 +265,7 @@ export function WorldProvider({ children }: PropsWithChildren) {
     return runWorldOperation((current) => {
       worldRepository.createSnapshot(current, '恢复前存档')
       return pauseInterruptedSessions(restored)
-    })
+    }, true)
   }, [runWorldOperation])
 
   const updateReminders = useCallback((patch: Partial<ReminderSettings>) => {
@@ -276,12 +285,13 @@ export function WorldProvider({ children }: PropsWithChildren) {
     if (!result.ok) showUserToast(result.message)
   }, [runWorldOperation])
 
-  const saveDraft = useCallback((sessionId: string, draft: BattleDraft): MapEditResult => {
+  const saveDraft = useCallback((sessionId: string, draft: BattleDraft, expectedRevision: number): MapEditResult => {
+    if (!isCurrentWorldRevision(expectedRevision)) return { ok: false, message: '存档已恢复，请在当前草稿中继续编辑' }
     try {
       commitWorld(saveBattleDraft(worldRef.current, sessionId, draft))
       return { ok: true }
     } catch { return { ok: false, message: '草稿未能保存，请检查本地空间' } }
-  }, [commitWorld])
+  }, [commitWorld, isCurrentWorldRevision])
 
   const createReward = useCallback((input: RewardItemInput) => runWorldOperation(
     (current, timestamp) => createRewardItem(current, input, timestamp)
@@ -326,6 +336,7 @@ export function WorldProvider({ children }: PropsWithChildren) {
   }, [reminderCount])
 
   const actions = useMemo<WorldActions>(() => ({
+    isCurrentWorldRevision,
     saveDraft,
     createCampaign,
     selectCampaign,
@@ -348,6 +359,7 @@ export function WorldProvider({ children }: PropsWithChildren) {
     createNpc,
     deleteNpc
   }), [
+    isCurrentWorldRevision,
     saveDraft,
     createCampaign,
     selectCampaign,
@@ -372,7 +384,7 @@ export function WorldProvider({ children }: PropsWithChildren) {
   ])
 
   return (
-    <WorldContext.Provider value={{ world, campaigns, activeCampaign, hydrated, now, actions }}>
+    <WorldContext.Provider value={{ world, worldRevision, campaigns, activeCampaign, hydrated, now, actions }}>
       {loadError ? <View className='page-shell'><View className='paper-card'><View className='section-title'>暂时无法展开存档</View><View>{loadError}</View><Button className='primary-button' onClick={loadWorld}>重新读取</Button></View></View> : children}
     </WorldContext.Provider>
   )

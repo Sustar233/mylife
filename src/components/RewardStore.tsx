@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { Button, Input, Text, Textarea, View } from '@tarojs/components'
 import { formatDateTime } from '../domain/utils'
 import { confirmAction, showUserToast } from '../services/taro-ui'
@@ -11,11 +11,14 @@ export function RewardStore() {
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [cost, setCost] = useState('80')
+  const [busy, setBusy] = useState(false)
+  const operationPending = useRef(false)
   const rewards = world.rewards
   const activeItems = rewards.items.filter((item) => !item.archivedAt)
   const pendingRedemptions = rewards.redemptions.filter((item) => !item.fulfilledAt)
 
   const createItem = () => {
+    if (operationPending.current) return
     const result = actions.createReward({ title, description, cost: Number(cost) })
     if (!result.ok) {
       showUserToast(result.message)
@@ -28,42 +31,53 @@ export function RewardStore() {
     showUserToast('新犒赏已上架', 'success')
   }
 
-  const redeem = async (itemId: string, itemTitle: string, itemCost: number) => {
-    if (rewards.coins < itemCost) return
+  const confirmRewardOperation = async (
+    options: Parameters<typeof confirmAction>[0],
+    operation: () => ReturnType<typeof actions.redeemReward>,
+    successMessage: string
+  ) => {
+    // 弹窗前同步占锁，避免 React 更新 disabled 前的连点重复兑换。
+    if (operationPending.current) return
+    operationPending.current = true
+    setBusy(true)
+    try {
+      if (!await confirmAction(options)) return
+      const result = operation()
+      showUserToast(result.ok ? successMessage : result.message, result.ok ? 'success' : 'none')
+    } catch (error) {
+      showUserToast(error instanceof Error ? error.message : '操作失败，请稍后重试')
+    } finally {
+      operationPending.current = false
+      setBusy(false)
+    }
+  }
 
-    const confirmed = await confirmAction({
+  const redeem = (itemId: string, itemTitle: string, itemCost: number) => {
+    if (rewards.coins < itemCost) return
+    return confirmRewardOperation({
       title: `兑换「${itemTitle}」？`,
       content: `将从国库支付 ${itemCost} 枚铜钱，并生成一张待兑现犒赏令。`,
       confirmText: '确认兑换',
       confirmColor: '#50666a'
-    })
-    if (!confirmed) return
-    const result = actions.redeemReward(itemId)
-    showUserToast(result.ok ? '犒赏令已签发' : result.message, result.ok ? 'success' : 'none')
+    }, () => actions.redeemReward(itemId), '犒赏令已签发')
   }
 
-  const archive = async (itemId: string, itemTitle: string) => {
-    const confirmed = await confirmAction({
+  const archive = (itemId: string, itemTitle: string) => {
+    return confirmRewardOperation({
       title: `下架「${itemTitle}」？`,
       content: '已经兑换的犒赏令和历史流水不会被删除。',
       confirmText: '确认下架',
       confirmColor: '#6d6358'
-    })
-    if (!confirmed) return
-    const result = actions.archiveReward(itemId)
-    if (!result.ok) showUserToast(result.message)
+    }, () => actions.archiveReward(itemId), '犒赏已下架')
   }
 
-  const fulfill = async (redemptionId: string, itemTitle: string) => {
-    const confirmed = await confirmAction({
+  const fulfill = (redemptionId: string, itemTitle: string) => {
+    return confirmRewardOperation({
       title: `已经兑现「${itemTitle}」？`,
       content: '确认后会将这张犒赏令收入历史记录。',
       confirmText: '已经享用',
       confirmColor: '#50666a'
-    })
-    if (!confirmed) return
-    const result = actions.fulfillReward(redemptionId)
-    showUserToast(result.ok ? '犒赏已兑现' : result.message, result.ok ? 'success' : 'none')
+    }, () => actions.fulfillReward(redemptionId), '犒赏已兑现')
   }
 
   return (
@@ -86,11 +100,11 @@ export function RewardStore() {
           <View className='reward-subtitle'>待兑现犒赏令</View>
           <View className='reward-voucher-list'>
             {pendingRedemptions.map((item) => (
-              <View key={item.id} className='reward-voucher' onClick={() => fulfill(item.id, item.title)}>
+              <Button key={item.id} className='reward-voucher' disabled={busy} onClick={() => void fulfill(item.id, item.title)}>
                 <View className='reward-voucher-seal'>令</View>
                 <View><Text>{item.title}</Text><small>{formatDateTime(item.redeemedAt)} · 点击确认兑现</small></View>
                 <Text className='reward-voucher-arrow'>›</Text>
-              </View>
+              </Button>
             ))}
           </View>
         </View>
@@ -115,22 +129,23 @@ export function RewardStore() {
           </View>
           <Text className='field-label'>给自己的约定（可选）</Text>
           <Textarea className='text-area reward-description-input' value={description} maxlength={120} placeholder='说明什么时候、以什么方式兑现这份奖励…' onInput={(event) => setDescription(event.detail.value)} />
-          <Button className='primary-button reward-create-button' onClick={createItem}>上架这项犒赏</Button>
+          <Button className='primary-button reward-create-button' disabled={busy} onClick={createItem}>上架这项犒赏</Button>
         </View>
       )}
 
+      {activeItems.length === 0 && <View className='reward-empty'>还没有可兑换的犒赏。点击「＋ 自定义犒赏」，为下一次进步准备一份奖励。</View>}
       <View className='reward-item-grid'>
         {activeItems.map((item) => (
           <View key={item.id} className='reward-item'>
             <View className='reward-item-top'>
               <View className='reward-item-icon'>{item.title.slice(0, 1)}</View>
-              <Text className='reward-item-remove' onClick={() => archive(item.id, item.title)}>下架</Text>
+              <Button className='reward-item-remove' disabled={busy} onClick={() => void archive(item.id, item.title)}>下架</Button>
             </View>
             <View className='reward-item-title'>{item.title}</View>
             <View className='reward-item-description'>{item.description || '这是给认真完成行动的自己准备的一份奖励。'}</View>
             <View className='reward-item-foot'>
               <View className='reward-price'><Text>{item.cost}</Text><small>铜钱</small></View>
-              <Button className='secondary-button reward-redeem-button' disabled={rewards.coins < item.cost} onClick={rewards.coins < item.cost ? undefined : () => void redeem(item.id, item.title, item.cost)}>{rewards.coins < item.cost ? '继续积攒' : '兑换'}</Button>
+              <Button className='secondary-button reward-redeem-button' disabled={busy || rewards.coins < item.cost} onClick={() => void redeem(item.id, item.title, item.cost)}>{rewards.coins < item.cost ? '继续积攒' : '兑换'}</Button>
             </View>
           </View>
         ))}

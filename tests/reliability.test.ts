@@ -7,6 +7,7 @@ import { createCampaignFromTemplate, createInitialWorldState, planSession, start
 import { sessionSecondsByDay } from '../src/domain/session-time'
 import { affordableMinutes } from '../src/domain/session-planning'
 import { EMPTY_BATTLE_DRAFT, saveBattleDraft } from '../src/domain/battle-draft'
+import { BattleDraftBuffer } from '../src/state/battle-draft-buffer'
 import { getTodayAgenda, getReminderCount } from '../src/domain/agenda'
 import { referencedImages } from '../src/domain/image-references'
 import { getLearningAnalytics } from '../src/domain/analytics'
@@ -227,6 +228,56 @@ describe('导入校验', () => {
 })
 
 describe('跨日计时、提醒和草稿', () => {
+  it('频繁保存检查点不会丢失不足一秒的累计时间', () => {
+    let world = activeWorld()
+    for (let milliseconds = 300; milliseconds <= 9_900; milliseconds += 300) {
+      world = checkpointActiveSessions(world, new Date(Date.parse(NOW) + milliseconds).toISOString())
+    }
+    world = pauseSession(world, 's1', '2026-10-01T04:00:10.000Z')
+    assert.equal(world.sessions[0].accumulatedSeconds, 10)
+    assert.deepEqual(world.sessions[0].secondsByDay, { '2026-10-01': 10 })
+  })
+
+  it('跨午夜的零碎检查点与一次结算保持相同分日计时', () => {
+    const initial = activeWorld('2026-09-30T15:59:58.400Z')
+    let checkpointed = initial
+    for (const at of ['2026-09-30T15:59:59.100Z', '2026-09-30T16:00:00.300Z', '2026-09-30T16:00:01.100Z']) {
+      checkpointed = checkpointActiveSessions(checkpointed, at)
+    }
+    const end = '2026-09-30T16:00:02.700Z'
+    const input = { outcome: 'partial' as const, evidence: [{ type: 'text' as const, content: PROOF }], clientMutationId: 'fractional' }
+    const actual = settleSession(checkpointed, 's1', input, end).sessions[0]
+    const expected = settleSession(initial, 's1', input, end).sessions[0]
+    assert.equal(actual.accumulatedSeconds, 4)
+    assert.deepEqual(actual.secondsByDay, expected.secondsByDay)
+    assert.equal(normalizeWorldState(settleSession(checkpointed, 's1', input, end)).sessions[0].accumulatedSeconds, 4)
+  })
+
+  it('系统时钟倒退时检查点不回退计时起点或重复累计', () => {
+    let world = checkpointActiveSessions(activeWorld(), '2026-10-01T04:00:30.000Z')
+    const saved = world
+    world = checkpointActiveSessions(world, '2026-10-01T03:59:00.000Z')
+    assert.equal(world, saved)
+    world = checkpointActiveSessions(world, '2026-10-01T04:00:40.000Z')
+    assert.equal(world.sessions[0].accumulatedSeconds, 40)
+    assert.deepEqual(world.sessions[0].secondsByDay, { '2026-10-01': 40 })
+  })
+
+  it('时钟倒退后暂停、撤回或结算仍保留已保存的时长', () => {
+    const world = checkpointActiveSessions(activeWorld(), '2026-10-01T04:00:30.000Z')
+    const rolledBack = '2026-10-01T03:59:00.000Z'
+    const results = [
+      pauseSession(world, 's1', rolledBack),
+      abandonSession(world, 's1', rolledBack),
+      settleSession(world, 's1', { outcome: 'partial', evidence: [{ type: 'text', content: PROOF }], clientMutationId: 'rollback' }, rolledBack)
+    ]
+    for (const result of results) {
+      assert.equal(result.sessions[0].accumulatedSeconds, 30)
+      assert.deepEqual(result.sessions[0].secondsByDay, { '2026-10-01': 30 })
+      assert.equal(normalizeWorldState(result).sessions[0].lastResumedAt, undefined)
+    }
+  })
+
   it('战史按实际学习日期分摊时长，战果记在结算当天', () => {
     let world = activeWorld('2026-09-30T15:50:00.000Z')
     const end = '2026-09-30T16:30:00.000Z'
@@ -297,5 +348,100 @@ describe('跨日计时、提醒和草稿', () => {
     const settled = settleSession(world, 's1', { outcome: 'partial', evidence: [{ type: 'text', content: PROOF }], clientMutationId: 'm1' }, '2026-10-01T04:05:00.000Z')
     assert.equal(settled.sessions[0].draft, undefined)
     assert.equal(saveBattleDraft(settled, 's1', EMPTY_BATTLE_DRAFT), settled)
+  })
+})
+
+describe('恢复存档与草稿编辑隔离', () => {
+  it('同一行动恢复存档后显示恢复草稿，旧定时器和图片回调不能覆写它', () => {
+    let world = mediaWorld()
+    let revision = 0
+    let saves = 0
+    const options = {
+      sessionId: 's1',
+      isCurrentRevision: (expected: number) => expected === revision,
+      save: (sessionId: string, draft: typeof EMPTY_BATTLE_DRAFT, expected: number) => {
+        assert.equal(expected, revision)
+        saves++
+        world = saveBattleDraft(world, sessionId, draft)
+        return { ok: true as const }
+      }
+    }
+    const old = new BattleDraftBuffer({ ...options, revision, draft: world.sessions[0].draft })
+    old.update({ note: '恢复之前尚未保存的输入' })
+
+    world = saveBattleDraft(world, 's1', { ...EMPTY_BATTLE_DRAFT, note: '从快照恢复的草稿', images: [PORTRAIT] })
+    revision++
+    const restored = new BattleDraftBuffer({ ...options, revision, draft: world.sessions[0].draft })
+    assert.equal(restored.draft.note, '从快照恢复的草稿')
+    assert.equal(old.update({ images: [PHOTO] }), false)
+    assert.equal(old.flush(), false)
+    assert.equal(saves, 0)
+    assert.deepEqual(world.sessions[0].draft, restored.draft)
+
+    restored.update({ note: '恢复后继续编辑' })
+    restored.flush()
+    assert.equal(world.sessions[0].draft?.note, '恢复后继续编辑')
+    assert.deepEqual(world.sessions[0].draft?.images, [PORTRAIT])
+  })
+
+  it('切换行动会补存原行动，迟到的回调不能把旧草稿带入新行动', () => {
+    let world = activeWorld()
+    world.sessions.push({ ...world.sessions[0], id: 's2', status: 'paused', lastResumedAt: undefined })
+    const save = (sessionId: string, draft: typeof EMPTY_BATTLE_DRAFT) => {
+      world = saveBattleDraft(world, sessionId, draft)
+      return { ok: true as const }
+    }
+    const old = new BattleDraftBuffer({ sessionId: 's1', revision: 0, isCurrentRevision: () => true, save })
+    old.update({ note: '行动一尚未保存的输入', images: [PHOTO] })
+    const next = new BattleDraftBuffer({ sessionId: 's2', revision: 0, isCurrentRevision: () => true, save })
+    old.deactivate()
+    old.flush()
+    assert.equal(world.sessions[0].draft?.note, '行动一尚未保存的输入')
+    assert.equal(next.draft.note, '')
+    assert.equal(old.update({ note: '迟到的输入', images: [PORTRAIT] }), false)
+    next.update({ note: '行动二自己的输入' })
+    next.flush()
+    assert.equal(world.sessions[1].draft?.note, '行动二自己的输入')
+    assert.deepEqual(world.sessions[1].draft?.images, [])
+    assert.deepEqual(world.sessions[0].draft?.images, [PHOTO])
+  })
+
+  it('保存失败保留待存输入，重试成功后不会反复写入', () => {
+    let world = activeWorld()
+    let fail = true
+    let saves = 0
+    const buffer = new BattleDraftBuffer({
+      sessionId: 's1', revision: 0, isCurrentRevision: () => true,
+      save: (sessionId, draft) => {
+        saves++
+        if (fail) return { ok: false, message: '空间不足' }
+        world = saveBattleDraft(world, sessionId, draft)
+        return { ok: true }
+      }
+    })
+    buffer.update({ note: PROOF })
+    buffer.flush()
+    assert.equal(buffer.status, '空间不足')
+    assert.equal(world.sessions.find((session) => session.id === 's1')?.draft, undefined)
+    fail = false
+    buffer.flush()
+    assert.equal(world.sessions[0].draft?.note, PROOF)
+    assert.equal(buffer.flush(), false)
+    assert.equal(saves, 2)
+  })
+
+  it('恢复没有草稿的版本会清空本地编辑且不会复活旧内容', () => {
+    let revision = 0
+    const old = new BattleDraftBuffer({
+      sessionId: 's1', revision, draft: { ...EMPTY_BATTLE_DRAFT, note: PROOF },
+      isCurrentRevision: (expected) => expected === revision,
+      save: () => { assert.fail('旧版本不应被保存') }
+    })
+    old.update({ images: [PHOTO] })
+    revision++
+    const restored = new BattleDraftBuffer({ sessionId: 's1', revision, isCurrentRevision: () => true, save: () => ({ ok: true }) })
+    old.deactivate()
+    old.flush()
+    assert.deepEqual(restored.draft, EMPTY_BATTLE_DRAFT)
   })
 })

@@ -262,13 +262,19 @@ export function replaceCampaignNode(world: WorldState, campaignId: string, repla
 }
 
 export function checkpointActiveSessions(world: WorldState, now = new Date().toISOString()): WorldState {
-  if (!world.sessions.some((session) => session.status === 'active' && session.lastResumedAt)) return world
-  return {
-    ...world,
-    sessions: world.sessions.map((session) => session.status === 'active' && session.lastResumedAt
-      ? { ...checkpointSession(session, world.profile.timezone, now), lastResumedAt: now }
-      : session)
-  }
+  let changed = false
+  const sessions = world.sessions.map((session) => {
+    if (session.status !== 'active' || !session.lastResumedAt) return session
+    const elapsedSeconds = getSessionActiveSeconds(session, now) - session.accumulatedSeconds
+    if (elapsedSeconds <= 0) return session
+    changed = true
+    return {
+      ...checkpointSession(session, world.profile.timezone, now),
+      // 仅推进已记账的整秒，保留余下毫秒；时钟倒退时不重置计时起点。
+      lastResumedAt: new Date(Date.parse(session.lastResumedAt) + elapsedSeconds * 1000).toISOString()
+    }
+  })
+  return changed ? { ...world, sessions } : world
 }
 
 export function pauseInterruptedSessions(world: WorldState, now = new Date().toISOString()): WorldState {

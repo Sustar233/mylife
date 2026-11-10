@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Button, Text, View } from '@tarojs/components'
 import { chooseAndParseWorldBackup, exportWorldBackup, prepareImportedWorld } from '../services/backup-service'
 import {
@@ -22,6 +22,7 @@ export function DataManagement() {
   const [evidence, setEvidence] = useState(EMPTY_EVIDENCE)
   const [snapshots, setSnapshots] = useState<WorldSnapshot[]>([])
   const [busy, setBusy] = useState(false)
+  const operationPending = useRef(false)
 
   const refresh = async () => {
     setStorage(worldRepository.getStats())
@@ -32,20 +33,32 @@ export function DataManagement() {
 
   useEffect(() => { refresh().catch(() => undefined) }, [world])
 
-  const exportBackup = async () => {
+  // 同步占用操作锁，防止连续点击在 React 更新 disabled 前重复进入。
+  const beginOperation = () => {
+    if (operationPending.current) return false
+    operationPending.current = true
     setBusy(true)
+    return true
+  }
+  const finishOperation = () => {
+    operationPending.current = false
+    setBusy(false)
+  }
+
+  const exportBackup = async () => {
+    if (!beginOperation()) return
     try {
       await exportWorldBackup(world)
       showUserToast('备份已经生成', 'success')
     } catch (error) {
       showUserToast(error instanceof Error ? error.message : '导出失败')
     } finally {
-      setBusy(false)
+      finishOperation()
     }
   }
 
   const importBackup = async () => {
-    setBusy(true)
+    if (!beginOperation()) return
     try {
       const imported = await chooseAndParseWorldBackup()
       const confirmed = await confirmAction({
@@ -67,24 +80,31 @@ export function DataManagement() {
       const message = error instanceof Error ? error.message : '导入失败'
       if (!/cancel/i.test(message)) showUserToast(message)
     } finally {
-      setBusy(false)
+      finishOperation()
     }
   }
 
   const restore = async (snapshot: WorldSnapshot) => {
-    const confirmed = await confirmAction({
-      title: `恢复${snapshot.label}？`,
-      content: `快照生成于 ${formatDateTime(snapshot.createdAt)}。当前数据会先另存一份快照。`,
-      confirmText: '恢复快照',
-      confirmColor: '#50666a'
-    })
-    if (!confirmed) return
-    const restored = actions.restoreSnapshot(snapshot.id)
-    showUserToast(restored.ok ? '快照已恢复' : restored.message, restored.ok ? 'success' : 'none')
+    if (!beginOperation()) return
+    try {
+      const confirmed = await confirmAction({
+        title: `恢复${snapshot.label}？`,
+        content: `快照生成于 ${formatDateTime(snapshot.createdAt)}。当前数据会先另存一份快照。`,
+        confirmText: '恢复快照',
+        confirmColor: '#50666a'
+      })
+      if (!confirmed) return
+      const restored = actions.restoreSnapshot(snapshot.id)
+      showUserToast(restored.ok ? '快照已恢复' : restored.message, restored.ok ? 'success' : 'none')
+    } catch (error) {
+      showUserToast(error instanceof Error ? error.message : '快照恢复失败')
+    } finally {
+      finishOperation()
+    }
   }
 
   const cleanup = async () => {
-    setBusy(true)
+    if (!beginOperation()) return
     try {
       const count = await cleanupOrphanedEvidence(world, worldRepository.listSnapshots().map((snapshot) => snapshot.world)) + worldRepository.cleanupImages()
       await refresh()
@@ -92,7 +112,7 @@ export function DataManagement() {
     } catch {
       showUserToast('图片清理失败，请稍后重试')
     } finally {
-      setBusy(false)
+      finishOperation()
     }
   }
 
@@ -122,9 +142,9 @@ export function DataManagement() {
       <View className='snapshot-list'>
         <View className='data-subtitle'>最近安全快照</View>
         {snapshots.length === 0 ? <View className='muted data-empty'>发生有效修改后会自动保留快照。</View> : snapshots.map((snapshot) => (
-          <View key={snapshot.id} className='snapshot-row' onClick={() => restore(snapshot)}>
+          <View key={snapshot.id} className='snapshot-row'>
             <View><Text>{snapshot.label}</Text><small>{formatDateTime(snapshot.createdAt)}</small></View>
-            <Text className='snapshot-action'>恢复 ›</Text>
+            <Button className='snapshot-action' disabled={busy} onClick={() => void restore(snapshot)}>恢复 ›</Button>
           </View>
         ))}
       </View>
